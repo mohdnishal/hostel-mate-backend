@@ -1,3 +1,4 @@
+
 const express = require('express');
 const mongoDB = require('./db');
 const User = require('./models/UserSchema');
@@ -19,6 +20,16 @@ const port = 5000;
 mongoDB();
 
 // Enable CORS
+
+const express = require('express')
+ const mongoDB=require('./db');
+ const User=require('./models/UserSchema')
+const cors=require('cors');
+const app = express()
+const port = 5000
+//dta
+ mongoDB();
+
 app.use(
   cors({
     credentials: true,
