@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
-const UserSchema=new Schema(
+const AllotedSchema=new Schema(
     {
         Name:{
             type:String,
@@ -11,6 +11,9 @@ const UserSchema=new Schema(
         PhoneNo:{
             type:String,
             //required:true
+        },
+        password:{
+            type:String
         },
         EmergencyPhoneNo:{
             type:String
@@ -113,7 +116,10 @@ const UserSchema=new Schema(
         },
         Priority:{
             type:String
+        },
+        Room_No:{
+            type:Number
         }
     }
 )
-module.exports=mongoose.model('student',UserSchema)
+module.exports=mongoose.model('user',AllotedSchema)
