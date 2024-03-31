@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
-const UserSchema=new Schema(
-    {
+const UserSchema2=new Schema(
+    {   Date:{
+        type:Date,
+        default:Date.now
+    },
         Name:{
             type:String,
             required:function(){
@@ -116,4 +119,4 @@ const UserSchema=new Schema(
         }
     }
 )
-module.exports=mongoose.model('student',UserSchema)
+module.exports=mongoose.model('copystudent',UserSchema2)
