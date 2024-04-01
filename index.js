@@ -4,6 +4,7 @@ const User = require('./models/UserSchema');
 const User2 = require('./models/UserSchema2');
 const attdce=require('./models/attendanceSchema');
 const Alloted=require('./models/AllotedSchema')
+const MessDutySchema=require('./models/MessDutyAllocation');
 const Room=require('./models/Room');
 const cors = require('cors');
 const multer = require('multer');
@@ -122,7 +123,7 @@ app.get('/fetch', async (req, res) => {
 
 app.get('/attendance', async (req, res) => {
   try {
-    const students = await User.find();
+    const students = await Alloted.find();
     res.json(students);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -227,9 +228,11 @@ app.post('/allot', async (req, res) => {
     await student.save();
 
     // Update room details
-    availableRoom.availability = false; // Set availability to false
     availableRoom.capacity--; // Decrement room capacity
     availableRoom.copystudents.push(studentId); // Add student to the room's list of students
+    if (availableRoom.capacity === 0) {
+      availableRoom.availability = false; // Set availability to false if room is full
+    }
     await availableRoom.save();
     
 
@@ -282,7 +285,156 @@ app.post('/allot', async (req, res) => {
 //     return res.status(500).json({ error: 'Internal server error' });
 //   }
 // });
- 
+// Backend API route to fetch allotted details sorted by room number
+app.get('/allotted-details', async (req, res) => {
+  try {
+    // Fetch allotted details from the database and sort them by room number in ascending order
+    const allottedDetails = await Alloted.find().sort({ Room_No: 1 });
+
+    // Custom sorting function to handle room numbers starting from 100
+    const sortedAllottedDetails = allottedDetails.sort((a, b) => {
+      const roomNoA = parseInt(a.Room_No);
+      const roomNoB = parseInt(b.Room_No);
+      return roomNoA - roomNoB;
+    });
+
+    res.json(sortedAllottedDetails);
+  } catch (error) {
+    console.error('Error fetching allotted details:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/available-rooms', async (req, res) => {
+  try {
+    // Find distinct room numbers from the Alloted schema where mess duty is not allocated
+    const availableRooms = await Alloted.distinct('Room_No', { messDutyAllocated: false });
+    res.status(200).json({ availableRooms });
+  } catch (error) {
+    console.error('Error fetching available rooms:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Route to allocate mess duty for the first available room
+app.post('/allocate-mess-duty', async (req, res) => {
+  try {
+    // Get the current date
+    const currentDate = new Date();
+    
+    // Calculate the next month's date
+    let nextMonthYear = currentDate.getFullYear();
+    let nextMonthMonth = currentDate.getMonth() + 1;
+    if (nextMonthMonth === 12) {
+      // If the next month is January of the next year
+      nextMonthYear++;
+      nextMonthMonth = 0; // January is 0 in JavaScript Date object
+    }
+    
+    // Check if adding 31 days to the current date is still in the same month
+    const nextMonthWith31Days = new Date(currentDate);
+    nextMonthWith31Days.setDate(nextMonthWith31Days.getDate() + 31);
+    const nextMonthWith31DaysMonth = nextMonthWith31Days.getMonth();
+
+    // If the next month with 31 days is not the same as the calculated next month, adjust the next month's date
+    if (nextMonthWith31DaysMonth !== nextMonthMonth) {
+      nextMonthMonth++;
+      if (nextMonthMonth === 12) {
+        // If the next month is January of the next year
+        nextMonthYear++;
+        nextMonthMonth = 0; // January is 0 in JavaScript Date object
+      }
+    }
+
+    const fromNextMonth = new Date(nextMonthYear, nextMonthMonth, 1);
+    const toNextMonth = new Date(fromNextMonth);
+    toNextMonth.setDate(toNextMonth.getDate() + 1); // Add 1 day
+
+    // Retrieve all rooms with their students count
+    const rooms = await Alloted.aggregate([
+      {
+        $group: {
+          _id: '$Room_No',
+          students: { $push: '$_id' }, // Push student IDs into an array
+          count: { $sum: 1 } // Calculate the count of students in each group
+        }
+      }
+    ]);
+
+    // Iterate over rooms and allocate mess duty for each
+    for (const room of rooms) {
+      const { _id: roomNo, students, count } = room;
+
+      // Check if room has less than 3 students
+      if (count < 3) {
+        // Retrieve additional students from other rooms to complete the mess duty
+        const additionalStudents = await Alloted.aggregate([
+          { $match: { Room_No: { $ne: roomNo } } }, // Exclude current room
+          { $sample: { size: 3 - count } } // Randomly select students from other rooms to fulfill the quota
+        ]);
+
+        // Combine the additional students with the existing ones
+        students.push(...additionalStudents.map(student => student._id));
+      }
+
+      // Get 3 students for mess duty
+      const studentsForDuty = students.slice(0, 3);
+
+      // Get the last allocated toDate for the room
+      const lastAllocation = await MessDutySchema.findOne({ roomNo }).sort({ toDate: -1 });
+      let lastToDate = fromNextMonth;
+      if (lastAllocation) {
+        lastToDate = lastAllocation.toDate;
+      }
+
+      // Allocate mess duty for each student
+      for (const studentId of studentsForDuty) {
+        // Find student by ID
+        const student = await Alloted.findById(studentId);
+        if (student) {
+          // Create mess duty document for next month
+          await MessDutySchema.create({
+            roomNo:student.Room_No,
+            studentName: student.Name,
+            fromDate: lastToDate,
+            toDate: new Date(lastToDate.getTime() + (24 * 60 * 60 * 1000)) // Add one day to lastToDate
+          });
+          lastToDate.setDate(lastToDate.getDate() + 1); // Update lastToDate for the next allocation
+        }
+      }
+    }
+
+    // Respond with success message
+    res.status(200).json({ message: 'Mess duty allocated successfully for next month' });
+  } catch (error) {
+    // Handle errors
+    console.error('Error allocating mess duty:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+// Route to fetch mess duty schedule
+app.get('/mess-duty', async (req, res) => {
+  try {
+    // Fetch mess duty data from the database
+    const messDutyData = await MessDutySchema.find();
+    res.json(messDutyData);
+  } catch (error) {
+    console.error('Error fetching mess duty data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 
 // ------------------------------
 // Start the server
