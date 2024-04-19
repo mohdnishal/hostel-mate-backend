@@ -1,12 +1,15 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
+const { Schema } = mongoose; 
 const attendanceSchema=new Schema(
     {
-        Name:{
-            type:String
-        },
-        Date:{ 
-            type: Date
+        student: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Users',
+             required: true
+          },
+          date:{ 
+            type: String,
+            required:true
         },
         present: {
             type: Boolean
