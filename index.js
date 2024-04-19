@@ -1,4 +1,3 @@
-
 const express = require('express');
 const mongoDB = require('./db');
 const User = require('./models/UserSchema');
@@ -17,19 +16,10 @@ const router = express.Router();
 const app = express();
 const port = 5000;
 
+
 // Connect to MongoDB
 mongoDB();
 
-// Enable CORS
-
-const express = require('express')
- const mongoDB=require('./db');
- const User=require('./models/UserSchema')
-const cors=require('cors');
-const app = express()
-const port = 5000
-//dta
- mongoDB();
 
 app.use(
   cors({
@@ -60,8 +50,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 // 
 
-
-
 //-----------------/multer-------------------------------------
 //-------------- Route to handle user registration----------------
 app.post('/register', upload.fields([{ name: 'IncomeCertificate', maxCount: 1 }, { name: 'Adhar', maxCount: 1 }]), async (req, res) => {
@@ -71,9 +59,6 @@ app.post('/register', upload.fields([{ name: 'IncomeCertificate', maxCount: 1 },
     PAddress2, PPincode, PDistrict, PState, PCountry, RAddressLine1, RAddress2, RPincode, RDistrict, RState, RCountry,
     Income, GName, GPhoneNo, Relation, GAddress1, GAddress2, GPincode, GDistrict, GState, GCountry,Priority
   } = req.body;
-
-  // const IncomeCertificate = req.file ? path.join('files', req.file.filename) : '';
-  // const Adhar = req.file ? path.join('files', req.file.filename) : '';
 
   try {
     const StudentInfo = await User.create({
@@ -108,8 +93,6 @@ app.post('/copyregister', async (req, res) => {
   }
 });
 
-
-
 //---------------/userReg-------------------------------------
 app.use("/files",express.static("files"));
 app.get("/getfiles",async(req,res)=>{
@@ -142,55 +125,34 @@ app.get('/attendance', async (req, res) => {
 });
 
 app.post('/attendance', async (req, res) => {
-  const{Name,Date,present}=req.body;
-  // Assuming req.body contains attendance data
   try {
-    const AttendanceInfo = await attdce.create({
-      Name, Date,present
-    });
-    res.json(AttendanceInfo);
+    const { attendanceData } = req.body;
+
+    // Assuming attendanceData is an object with student IDs as keys
+    // Iterate over each student and save attendance record
+    for (const studentId in attendanceData) {
+      const { date, present } = attendanceData[studentId];
+      
+      // Create new attendance record
+      const attendance = new attdce({
+        student: studentId,
+        date: date,
+        present: present
+      });
+
+      // Save the attendance record to the database
+      await attendance.save();
+    }
+
+    res.status(201).json({ message: 'Attendance saved successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error' });
-    console.error(error);
+    console.error('Error saving attendance:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
+
 // ----------------user------------------------------
-// app.post('/allot', async (req, res) => {
-//   try {
-//     const { studentId,Room_No} = req.body;
 
-//     // Find the student by ID in the Student schema
-//     const student = await User.findById(studentId);
-//     // const room=await Room.findById(Room_No);
-
-//     if (!student) {
-//       return res.status(404).json({ error: 'Student not found' });
-//     }
-//     const room = await Room.findOne({ Room_No });
-//     if (!room) {
-//       return res.status(404).json({ error: 'Room not found' });
-//     }
-
-//     // Create a new document in the AllottedStudent schema
-//     const allottedStudent = new Alloted({
-//       Name: student.Name,
-//       AdmNo:student.AdmNo,
-//       password:student.PhoneNo,
-//       Room_No: room.Room_No,
-//       // Copy other fields as needed
-//     });
-
-//     // Save the allotted student to the database
-//     await allottedStudent.save();
-//     // student.room=room.Room_No;
-//     // await student.save();
-//     // await room.save();
-//     return res.status(200).json({ message: 'Student details stored successfully in allotted schema' });
-//   } catch (error) {
-//     console.error('Error storing student details in allotted schema:', error.message);
-//     return res.status(500).json({ error: 'Internal server error' });
-//   }
-// });
 // Route to handle allotting a room to a student
 app.post('/allot', async (req, res) => {
   try {
@@ -246,8 +208,6 @@ app.post('/allot', async (req, res) => {
     }
     await availableRoom.save();
     
-
-
     await User.deleteOne({ _id: studentId });
 
     return res.status(200).json({ message: 'Room allotted successfully', roomNo: availableRoom.Room_No });
@@ -258,44 +218,7 @@ app.post('/allot', async (req, res) => {
 });
 
 // Route to handle room allocation
-// app.post('/allocate-room', async (req, res) => {
-//   try {
-//     const { studentId } = req.body;
-//     const student = await User.findById(studentId);
-//     if (!student) {
-//       return res.status(404).json({ error: 'Student not found' });
-//     }
 
-//     // Find available rooms based on student's year of study
-//     const availableRooms = await Room.find({ availability: true, capacity: { $gt: 0 } });
-
-//     // Logic to select the appropriate room based on the student's year of study
-//     // You need to implement this logic based on your requirements
-
-//     if (availableRooms.length === 0) {
-//       return res.status(400).json({ error: 'No available rooms' });
-//     }
-
-//     const selectedRoom = availableRooms[0]; // For demonstration, selecting the first available room
-
-//     // Update room details
-//     selectedRoom.copystudents.push(studentId);
-//     selectedRoom.capacity--; // Decrement room capacity
-//     if (selectedRoom.capacity === 0) {
-//       selectedRoom.availability = false; // Set availability to false if room is full
-//     }
-//     await selectedRoom.save();
-
-//     // Update student's room details
-//     student.room = selectedRoom.Room_No; // Assuming 'room' is a field in the User schema
-//     await student.save();
-
-//     return res.status(200).json({ message: 'Room allocated successfully', roomNo: selectedRoom.Room_No });
-//   } catch (error) {
-//     console.error('Error allocating room:', error.message);
-//     return res.status(500).json({ error: 'Internal server error' });
-//   }
-// });
 // Backend API route to fetch allotted details sorted by room number
 app.get('/allotted-details', async (req, res) => {
   try {
@@ -328,39 +251,29 @@ app.get('/available-rooms', async (req, res) => {
 });
 
 // Route to allocate mess duty for the first available room
+// Add this route to your Express.js backend
+// Function to format date to "Sat Jun 01 2024" format
+function formatDate(date) {
+  const options = { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+let lastToDate = new Date(); // Initialize lastToDate to the current date
+// Add this route to your Express.js backend
+// Declare a variable to store the last allocated date
+
+let lastAllocatedDate = new Date(); // Initialize last allocated date with the current date
+
 app.post('/allocate-mess-duty', async (req, res) => {
   try {
-    // Get the current date
-    const currentDate = new Date();
-    
-    // Calculate the next month's date
-    let nextMonthYear = currentDate.getFullYear();
-    let nextMonthMonth = currentDate.getMonth() + 1;
-    if (nextMonthMonth === 12) {
-      // If the next month is January of the next year
-      nextMonthYear++;
-      nextMonthMonth = 0; // January is 0 in JavaScript Date object
+    // Retrieve the last allocated date from the MessDutySchema collection
+    const lastAllocation = await MessDutySchema.findOne({}, {}, { sort: { 'toDate': -1 } });
+
+    if (lastAllocation) {
+      // If there is a last allocated date, set lastAllocatedDate as the toDate of the last allocation
+      lastAllocatedDate = new Date(lastAllocation.toDate);
+      lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 1); // Increment by 1 day
     }
-    
-    // Check if adding 31 days to the current date is still in the same month
-    const nextMonthWith31Days = new Date(currentDate);
-    nextMonthWith31Days.setDate(nextMonthWith31Days.getDate() + 31);
-    const nextMonthWith31DaysMonth = nextMonthWith31Days.getMonth();
-
-    // If the next month with 31 days is not the same as the calculated next month, adjust the next month's date
-    if (nextMonthWith31DaysMonth !== nextMonthMonth) {
-      nextMonthMonth++;
-      if (nextMonthMonth === 12) {
-        // If the next month is January of the next year
-        nextMonthYear++;
-        nextMonthMonth = 0; // January is 0 in JavaScript Date object
-      }
-    }
-
-    const fromNextMonth = new Date(nextMonthYear, nextMonthMonth, 1);
-    const toNextMonth = new Date(fromNextMonth);
-    toNextMonth.setDate(toNextMonth.getDate() + 1); // Add 1 day
-
     // Retrieve all rooms with their students count
     const rooms = await Alloted.aggregate([
       {
@@ -374,44 +287,53 @@ app.post('/allocate-mess-duty', async (req, res) => {
 
     // Iterate over rooms and allocate mess duty for each
     for (const room of rooms) {
-      const { _id: roomNo, students, count } = room;
+      const { _id: roomNo, students } = room;
 
-      // Check if room has less than 3 students
-      if (count < 3) {
-        // Retrieve additional students from other rooms to complete the mess duty
-        const additionalStudents = await Alloted.aggregate([
-          { $match: { Room_No: { $ne: roomNo } } }, // Exclude current room
-          { $sample: { size: 3 - count } } // Randomly select students from other rooms to fulfill the quota
-        ]);
+      let remainingStudents = students; // Copy all students initially
+      while (remainingStudents.length >= 2) {
+        const studentGroup = remainingStudents.splice(0, 2); // Take 2 students for the group
 
-        // Combine the additional students with the existing ones
-        students.push(...additionalStudents.map(student => student._id));
-      }
+        // Allocate duty for two days starting from lastAllocatedDate
+        const fromDate = new Date(lastAllocatedDate);
+        const toDate = new Date(lastAllocatedDate);
+        toDate.setDate(toDate.getDate() + 1); // Add 1 day for the next day
 
-      // Get 3 students for mess duty
-      const studentsForDuty = students.slice(0, 3);
-
-      // Get the last allocated toDate for the room
-      const lastAllocation = await MessDutySchema.findOne({ roomNo }).sort({ toDate: -1 });
-      let lastToDate = fromNextMonth;
-      if (lastAllocation) {
-        lastToDate = lastAllocation.toDate;
-      }
-
-      // Allocate mess duty for each student
-      for (const studentId of studentsForDuty) {
-        // Find student by ID
-        const student = await Alloted.findById(studentId);
-        if (student) {
-          // Create mess duty document for next month
-          await MessDutySchema.create({
-            roomNo:student.Room_No,
-            studentName: student.Name,
-            fromDate: lastToDate,
-            toDate: new Date(lastToDate.getTime() + (24 * 60 * 60 * 1000)) // Add one day to lastToDate
-          });
-          lastToDate.setDate(lastToDate.getDate() + 1); // Update lastToDate for the next allocation
+        for (const studentId of studentGroup) {
+          const student = await Alloted.findById(studentId);
+          if (student) {
+            await MessDutySchema.create({
+              roomNo: student.Room_No,
+              studentName: student.Name,
+              fromDate,
+              toDate
+            });
+          }
         }
+
+        // Update lastAllocatedDate for the next group
+        lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 2); // Add 2 days for the next group
+      }
+      
+      // Allocate duty for remaining students in the room, if any
+      if (remainingStudents.length > 0) {
+        const fromDate = new Date(lastAllocatedDate);
+        const toDate = new Date(lastAllocatedDate);
+        toDate.setDate(toDate.getDate() + 1); // Add 1 day for the next day
+
+        for (const studentId of remainingStudents) {
+          const student = await Alloted.findById(studentId);
+          if (student) {
+            await MessDutySchema.create({
+              roomNo: student.Room_No,
+              studentName: student.Name,
+              fromDate,
+              toDate
+            });
+          }
+        }
+
+        // Update lastAllocatedDate for the next group
+        lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 1); // Add 1 day for the next group
       }
     }
 
@@ -433,6 +355,32 @@ app.post('/allocate-mess-duty', async (req, res) => {
 
 
 
+
+
+
+
+
+// Add this route to your Express.js backend
+
+
+
+
+// 
+// Add this route to your Express.js backend
+app.delete('/delete-all-mess-duty', async (req, res) => {
+  try {
+    await MessDutySchema.deleteMany({});
+    res.status(200).json({ message: 'All mess duty data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting all mess duty data:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
+
+
 // Route to fetch mess duty schedule
 app.get('/mess-duty', async (req, res) => {
   try {
@@ -445,7 +393,74 @@ app.get('/mess-duty', async (req, res) => {
   }
 });
 
+app.get('/counts', async (req, res) => {
+  try {
+    const result = await attdce.aggregate([
+      {
+        $match: { student: { $exists: true } }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'student',
+          foreignField: '_id',
+          as: 'studentData'
+        }
+      },
+      {
+        $unwind: '$studentData'
+      },
+      {
+        $group: {
+          _id: {
+            studentName: '$studentData.Name',
+            month: { $month: { $dateFromString: { dateString: '$date' } } } // Extract month (MM) from the date field
+          },
+          count: { $sum: { $cond: [{ $eq: ['$present', true] }, 1, 0] } }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.studentName',
+          countsByMonth: { 
+            $push: { 
+              month: { 
+                $switch: {
+                  branches: [
+                    { case: { $eq: ['$_id.month', 1] }, then: 'January' },
+                    { case: { $eq: ['$_id.month', 2] }, then: 'February' },
+                    { case: { $eq: ['$_id.month', 3] }, then: 'March' },
+                    { case: { $eq: ['$_id.month', 4] }, then: 'April' },
+                    { case: { $eq: ['$_id.month', 5] }, then: 'May' },
+                    { case: { $eq: ['$_id.month', 6] }, then: 'June' },
+                    { case: { $eq: ['$_id.month', 7] }, then: 'July' },
+                    { case: { $eq: ['$_id.month', 8] }, then: 'August' },
+                    { case: { $eq: ['$_id.month', 9] }, then: 'September' },
+                    { case: { $eq: ['$_id.month', 10] }, then: 'October' },
+                    { case: { $eq: ['$_id.month', 11] }, then: 'November' },
+                    { case: { $eq: ['$_id.month', 12] }, then: 'December' }
+                  ],
+                  default: 'Unknown'
+                } 
+              }, 
+              count: '$count' 
+            } 
+          }
+        }
+      }
+    ]);
 
+    const attendanceCountsByStudent = {};
+    result.forEach(item => {
+      attendanceCountsByStudent[item._id] = item.countsByMonth;
+    });
+
+    res.json(attendanceCountsByStudent);
+  } catch (error) {
+    console.error('Error getting attendance count for students by month:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 // ------------------------------
 // Start the server
