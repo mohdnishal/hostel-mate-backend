@@ -5,11 +5,13 @@ const User2 = require('./models/UserSchema2');
 const attdce=require('./models/attendanceSchema');
 const Alloted=require('./models/AllotedSchema')
 const MessDutySchema=require('./models/MessDutyAllocation');
+const MessBillSchema=require('./models/MessBillSchema');
 const Room=require('./models/Room');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { log } = require('console');
 const router = express.Router();
 
 
@@ -126,30 +128,29 @@ app.get('/attendance', async (req, res) => {
 
 app.post('/attendance', async (req, res) => {
   try {
-    const { attendanceData } = req.body;
+    const { date, studentsPresent } = req.body;
 
-    // Assuming attendanceData is an object with student IDs as keys
-    // Iterate over each student and save attendance record
-    for (const studentId in attendanceData) {
-      const { date, present } = attendanceData[studentId];
-      
-      // Create new attendance record
-      const attendance = new attdce({
-        student: studentId,
-        date: date,
-        present: present
-      });
-
-      // Save the attendance record to the database
-      await attendance.save();
+    // Check if the date is empty
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required' });
     }
 
-    res.status(201).json({ message: 'Attendance saved successfully' });
+    // Create new attendance record
+    const attendance = new attdce({
+      date,
+      studentsPresent,
+    });
+
+    // Save the attendance record to the database
+    const savedAttendance = await attendance.save();
+
+    res.status(201).json({ message: 'Attendance saved successfully', attendance: savedAttendance });
   } catch (error) {
     console.error('Error saving attendance:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
+//
 
 // ----------------user------------------------------
 
@@ -250,8 +251,7 @@ app.get('/available-rooms', async (req, res) => {
   }
 });
 
-// Route to allocate mess duty for the first available room
-// Add this route to your Express.js backend
+
 // Function to format date to "Sat Jun 01 2024" format
 function formatDate(date) {
   const options = { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' };
@@ -259,81 +259,50 @@ function formatDate(date) {
 }
 
 let lastToDate = new Date(); // Initialize lastToDate to the current date
-// Add this route to your Express.js backend
-// Declare a variable to store the last allocated date
-
 let lastAllocatedDate = new Date(); // Initialize last allocated date with the current date
 
 app.post('/allocate-mess-duty', async (req, res) => {
   try {
+    // Initialize lastToDate to the current date plus 10 days
+    let lastToDate = new Date();
+    lastToDate.setDate(lastToDate.getDate() + 10);
+
     // Retrieve the last allocated date from the MessDutySchema collection
     const lastAllocation = await MessDutySchema.findOne({}, {}, { sort: { 'toDate': -1 } });
 
     if (lastAllocation) {
-      // If there is a last allocated date, set lastAllocatedDate as the toDate of the last allocation
-      lastAllocatedDate = new Date(lastAllocation.toDate);
-      lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 1); // Increment by 1 day
+      // If there is a last allocated date, set lastToDate as the toDate of the last allocation plus 10 days
+      lastToDate = new Date(lastAllocation.toDate);
+      lastToDate.setDate(lastToDate.getDate() + 10);
     }
-    // Retrieve all rooms with their students count
-    const rooms = await Alloted.aggregate([
-      {
-        $group: {
-          _id: '$Room_No',
-          students: { $push: '$_id' }, // Push student IDs into an array
-          count: { $sum: 1 } // Calculate the count of students in each group
-        }
-      }
-    ]);
 
-    // Iterate over rooms and allocate mess duty for each
-    for (const room of rooms) {
-      const { _id: roomNo, students } = room;
+    // Retrieve all students
+    const allStudents = await Alloted.find({});
 
-      let remainingStudents = students; // Copy all students initially
-      while (remainingStudents.length >= 2) {
-        const studentGroup = remainingStudents.splice(0, 2); // Take 2 students for the group
+    // Track allocated students
+    const allocatedStudents = new Set();
 
-        // Allocate duty for two days starting from lastAllocatedDate
-        const fromDate = new Date(lastAllocatedDate);
-        const toDate = new Date(lastAllocatedDate);
-        toDate.setDate(toDate.getDate() + 1); // Add 1 day for the next day
+    // Allocate duty for each student
+    for (const student of allStudents) {
+      if (!allocatedStudents.has(student._id)) {
+        const roomStudents = allStudents.filter(s => s.Room_No === student.Room_No);
 
-        for (const studentId of studentGroup) {
-          const student = await Alloted.findById(studentId);
-          if (student) {
-            await MessDutySchema.create({
-              roomNo: student.Room_No,
-              studentName: student.Name,
-              fromDate,
-              toDate
-            });
-          }
+        // Allocate duty for the group
+        const fromDate = lastToDate.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        const toDate = new Date(lastToDate.setDate(lastToDate.getDate() + 1)).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+        for (const groupStudent of roomStudents) {
+          await MessDutySchema.create({
+            roomNo: groupStudent.Room_No,
+            studentName: groupStudent.Name,
+            fromDate,
+            toDate
+          });
+          allocatedStudents.add(groupStudent._id); // Track allocated student
         }
 
-        // Update lastAllocatedDate for the next group
-        lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 2); // Add 2 days for the next group
-      }
-      
-      // Allocate duty for remaining students in the room, if any
-      if (remainingStudents.length > 0) {
-        const fromDate = new Date(lastAllocatedDate);
-        const toDate = new Date(lastAllocatedDate);
-        toDate.setDate(toDate.getDate() + 1); // Add 1 day for the next day
-
-        for (const studentId of remainingStudents) {
-          const student = await Alloted.findById(studentId);
-          if (student) {
-            await MessDutySchema.create({
-              roomNo: student.Room_No,
-              studentName: student.Name,
-              fromDate,
-              toDate
-            });
-          }
-        }
-
-        // Update lastAllocatedDate for the next group
-        lastAllocatedDate.setDate(lastAllocatedDate.getDate() + 1); // Add 1 day for the next group
+        // Update lastToDate for the next group
+        lastToDate.setDate(lastToDate.getDate() + 1); // Add 1 day for the next group
       }
     }
 
@@ -352,20 +321,6 @@ app.post('/allocate-mess-duty', async (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
-// Add this route to your Express.js backend
-
-
-
-
-// 
 // Add this route to your Express.js backend
 app.delete('/delete-all-mess-duty', async (req, res) => {
   try {
@@ -376,9 +331,6 @@ app.delete('/delete-all-mess-duty', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
-
 
 
 // Route to fetch mess duty schedule
@@ -397,31 +349,33 @@ app.get('/counts', async (req, res) => {
   try {
     const result = await attdce.aggregate([
       {
-        $match: { student: { $exists: true } }
+        $unwind: '$studentsPresent' // Unwind the studentsPresent array
       },
       {
         $lookup: {
-          from: 'users',
-          localField: 'student',
+          from: 'users', // Look up data from the 'users' collection
+          localField: 'studentsPresent',
           foreignField: '_id',
           as: 'studentData'
         }
       },
       {
-        $unwind: '$studentData'
+        $unwind: '$studentData' // Unwind the studentData array
       },
       {
         $group: {
           _id: {
-            studentName: '$studentData.Name',
+            studentId: '$studentsPresent', // Group by student ID
             month: { $month: { $dateFromString: { dateString: '$date' } } } // Extract month (MM) from the date field
           },
-          count: { $sum: { $cond: [{ $eq: ['$present', true] }, 1, 0] } }
+          studentName: { $first: '$studentData.Name' }, // Get the student name
+          count: { $sum: 1 } // Count the occurrences
         }
       },
       {
         $group: {
-          _id: '$_id.studentName',
+          _id: '$_id.studentId', // Group again by student ID
+          studentName: { $first: '$studentName' }, // Keep the student name
           countsByMonth: { 
             $push: { 
               month: { 
@@ -452,7 +406,7 @@ app.get('/counts', async (req, res) => {
 
     const attendanceCountsByStudent = {};
     result.forEach(item => {
-      attendanceCountsByStudent[item._id] = item.countsByMonth;
+      attendanceCountsByStudent[item.studentName] = item.countsByMonth;
     });
 
     res.json(attendanceCountsByStudent);
@@ -461,6 +415,90 @@ app.get('/counts', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+app.get('/totalattendance', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const result = await attdce.aggregate([
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: [{ $year: { $dateFromString: { dateString: '$date' } } }, parseInt(year)] },
+              { $eq: [{ $month: { $dateFromString: { dateString: '$date' } } }, parseInt(month)] }
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          date: 1,
+          studentCount: { $size: '$studentsPresent' }
+        }
+      },
+      {
+        $group: {
+          _id: '$date',
+          totalStudentsPresent: { $sum: '$studentCount' }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalStudentsInMonth: { $sum: '$totalStudentsPresent' }
+        }
+      }
+    ]);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching total attendance:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/messbill',async(req,res)=>{
+    const{Date,TotalEstablishmentcharge,TotalFoodCharge,Fine}=req.body;
+    const TotalExpense=TotalEstablishmentcharge+TotalFoodCharge;
+    NumberofUser=await getTotalStudents();
+    const [year, month] = Date.split('-');
+    const specificMonth = `${year}-${month}`;
+    const esscharge = TotalEstablishmentcharge / NumberofUser;
+    TotalAttendance=await attdce.countStudentsInMonth(specificMonth);
+     console.log(TotalAttendance);
+    const MessBill=new MessBillSchema({
+      Date,
+      NumberofUser,
+      TotalEstablishmentcharge,
+      TotalFoodCharge,
+      //Totalnoofattendance,
+      TotalExpense,
+      esscharge,
+      //FoodPerDay,
+      //Fine,
+      TotalAttendance,
+      //RatePerDay
+    });
+    try {
+      await MessBill.save();
+      res.status(201).json({message: 'Mess bill calculated and saved successfully'})
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+    }
+
+})
+async function getTotalStudents() {
+  try {
+    const totalStudents = await Alloted.countStudents();
+    console.log('Total number of students:', totalStudents);
+    return totalStudents;
+  } catch (err) {
+    console.error('Error counting students:', err);
+  }
+}
+
+
+
 
 // ------------------------------
 // Start the server
