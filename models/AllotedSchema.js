@@ -122,4 +122,13 @@ const AllotedSchema=new Schema(
         }
     }
 )
+AllotedSchema.statics.countStudents = async function () {
+    try {
+      const count = await this.countDocuments();
+      return count;
+    } catch (err) {
+      throw new Error('Error counting students');
+    }
+  };
+  
 module.exports=mongoose.model('user',AllotedSchema)
