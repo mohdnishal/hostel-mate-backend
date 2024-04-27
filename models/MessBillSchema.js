@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const MessBillSchema = new mongoose.Schema({
-  Date: {
+  date: {
     type: String,
     // required: true
   },
