@@ -11,7 +11,7 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const { log } = require('console');
+
 const router = express.Router();
 
 
@@ -218,9 +218,7 @@ app.post('/allot', async (req, res) => {
   }
 });
 
-// Route to handle room allocation
 
-// Backend API route to fetch allotted details sorted by room number
 app.get('/allotted-details', async (req, res) => {
   try {
     // Fetch allotted details from the database and sort them by room number in ascending order
@@ -251,15 +249,6 @@ app.get('/available-rooms', async (req, res) => {
   }
 });
 
-
-// Function to format date to "Sat Jun 01 2024" format
-function formatDate(date) {
-  const options = { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' };
-  return date.toLocaleDateString('en-US', options);
-}
-
-let lastToDate = new Date(); // Initialize lastToDate to the current date
-let lastAllocatedDate = new Date(); // Initialize last allocated date with the current date
 
 app.post('/allocate-mess-duty', async (req, res) => {
   try {
@@ -352,9 +341,15 @@ app.get('/counts', async (req, res) => {
         $unwind: '$studentsPresent' // Unwind the studentsPresent array
       },
       {
+        $group: {
+          _id: '$studentsPresent', // Group by student ID
+          count: { $sum: 1 } // Count the occurrences
+        }
+      },
+      {
         $lookup: {
           from: 'users', // Look up data from the 'users' collection
-          localField: 'studentsPresent',
+          localField: '_id',
           foreignField: '_id',
           as: 'studentData'
         }
@@ -363,58 +358,27 @@ app.get('/counts', async (req, res) => {
         $unwind: '$studentData' // Unwind the studentData array
       },
       {
-        $group: {
-          _id: {
-            studentId: '$studentsPresent', // Group by student ID
-            month: { $month: { $dateFromString: { dateString: '$date' } } } // Extract month (MM) from the date field
-          },
-          studentName: { $first: '$studentData.Name' }, // Get the student name
-          count: { $sum: 1 } // Count the occurrences
-        }
-      },
-      {
-        $group: {
-          _id: '$_id.studentId', // Group again by student ID
-          studentName: { $first: '$studentName' }, // Keep the student name
-          countsByMonth: { 
-            $push: { 
-              month: { 
-                $switch: {
-                  branches: [
-                    { case: { $eq: ['$_id.month', 1] }, then: 'January' },
-                    { case: { $eq: ['$_id.month', 2] }, then: 'February' },
-                    { case: { $eq: ['$_id.month', 3] }, then: 'March' },
-                    { case: { $eq: ['$_id.month', 4] }, then: 'April' },
-                    { case: { $eq: ['$_id.month', 5] }, then: 'May' },
-                    { case: { $eq: ['$_id.month', 6] }, then: 'June' },
-                    { case: { $eq: ['$_id.month', 7] }, then: 'July' },
-                    { case: { $eq: ['$_id.month', 8] }, then: 'August' },
-                    { case: { $eq: ['$_id.month', 9] }, then: 'September' },
-                    { case: { $eq: ['$_id.month', 10] }, then: 'October' },
-                    { case: { $eq: ['$_id.month', 11] }, then: 'November' },
-                    { case: { $eq: ['$_id.month', 12] }, then: 'December' }
-                  ],
-                  default: 'Unknown'
-                } 
-              }, 
-              count: '$count' 
-            } 
-          }
+        $project: {
+          _id: 0, // Exclude the _id field
+          studentId: '$_id',
+          studentName: '$studentData.Name',
+          count: 1 // Include the count field
         }
       }
     ]);
 
-    const attendanceCountsByStudent = {};
+    const studentsPresentCounts = {};
     result.forEach(item => {
-      attendanceCountsByStudent[item.studentName] = item.countsByMonth;
+      studentsPresentCounts[item.studentName] = item.count;
     });
 
-    res.json(attendanceCountsByStudent);
+    res.json(studentsPresentCounts);
   } catch (error) {
-    console.error('Error getting attendance count for students by month:', error);
+    console.error('Error getting attendance count for students:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 app.get('/totalattendance', async (req, res) => {
   try {
@@ -457,36 +421,38 @@ app.get('/totalattendance', async (req, res) => {
   }
 });
 
-app.post('/messbill',async(req,res)=>{
-    const{Date,TotalEstablishmentcharge,TotalFoodCharge,Fine}=req.body;
-    const TotalExpense=TotalEstablishmentcharge+TotalFoodCharge;
-    NumberofUser=await getTotalStudents();
-    const [year, month] = Date.split('-');
-    const specificMonth = `${year}-${month}`;
-    const esscharge = TotalEstablishmentcharge / NumberofUser;
-    TotalAttendance=await attdce.countStudentsInMonth(specificMonth);
-     console.log(TotalAttendance);
-    const MessBill=new MessBillSchema({
-      Date,
-      NumberofUser,
-      TotalEstablishmentcharge,
-      TotalFoodCharge,
-      //Totalnoofattendance,
-      TotalExpense,
-      esscharge,
-      //FoodPerDay,
-      //Fine,
-      TotalAttendance,
-      //RatePerDay
-    });
-    try {
-      await MessBill.save();
-      res.status(201).json({message: 'Mess bill calculated and saved successfully'})
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to calculate and save mess bill' });
-    }
+app.post('/messbill', async (req, res) => {
+  const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+  const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+  const month = date.substring(0, 7); 
+  const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
+  const NumberofUser = await getTotalStudents(); 
+  const esscharge = TotalEstablishmentcharge / NumberofUser;
+  const RatePerDay=TotalFoodCharge/TotalAttendance;
 
-})
+  
+  const MessBill = new MessBillSchema({
+    date,
+    NumberofUser,
+    TotalEstablishmentcharge,
+    TotalFoodCharge,
+    TotalExpense,
+    esscharge,
+    TotalAttendance,
+    RatePerDay, 
+  });
+
+  try {
+    await MessBill.save();
+    res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+  }
+});
+
+
+
+
 async function getTotalStudents() {
   try {
     const totalStudents = await Alloted.countStudents();
@@ -496,7 +462,50 @@ async function getTotalStudents() {
     console.error('Error counting students:', err);
   }
 }
+// async function counts(req, res)  {
+//   try {
+//     const result = await attdce.aggregate([
+//       {
+//         $unwind: '$studentsPresent' // Unwind the studentsPresent array
+//       },
+//       {
+//         $group: {
+//           _id: '$studentsPresent', // Group by student ID
+//           count: { $sum: 1 } // Count the occurrences
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: 'users', // Look up data from the 'users' collection
+//           localField: '_id',
+//           foreignField: '_id',
+//           as: 'studentData'
+//         }
+//       },
+//       {
+//         $unwind: '$studentData' // Unwind the studentData array
+//       },
+//       {
+//         $project: {
+//           _id: 0, // Exclude the _id field
+//           studentId: '$_id',
+//           studentName: '$studentData.Name',
+//           count: 1 // Include the count field
+//         }
+//       }
+//     ]);
 
+//     const studentsPresentCounts = {};
+//     result.forEach(item => {
+//       studentsPresentCounts[item.studentName] = item.count;
+//     });
+//     console.log(studentsPresentCounts);
+//     // res.json(studentsPresentCounts);
+//   } catch (error) {
+//     console.error('Error getting attendance count for students:', error);
+//     res.status(500).json({ error: 'Internal Server Error' });
+//   }
+// }
 
 
 

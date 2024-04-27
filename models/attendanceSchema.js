@@ -12,27 +12,24 @@ const attendanceSchema = new Schema({
         ref: 'Users'
     }]
 });
-attendanceSchema.statics.countStudentsInMonth = async function (month) {
-    const startOfMonth = new Date(month);
-    startOfMonth.setUTCDate(1); // Set the date to the first day of the month
-    startOfMonth.setUTCHours(0, 0, 0, 0); // Set hours to 00:00:00:000
-    const endOfMonth = new Date(startOfMonth);
-    endOfMonth.setUTCMonth(endOfMonth.getUTCMonth() + 1); // Move to the next month
+attendanceSchema.statics.countTotalStudentsInMonth = async function (month) {
+    const [year, monthNumber] = month.split('-');
+    const startDate = new Date(year, monthNumber - 1, 1); // Create a start date for the month
+    const endDate = new Date(year, monthNumber, 0); // Create an end date for the month
+
     const attendanceRecords = await this.find({
         date: {
-            $gte: startOfMonth.toISOString(),
-            $lt: endOfMonth.toISOString()
+            $gte: startDate.toISOString(),
+            $lt: endDate.toISOString()
         }
     });
-    
-    // Extract and count distinct students
-    const distinctStudents = new Set();
+
+    let totalStudents = 0;
     attendanceRecords.forEach(record => {
-        record.studentsPresent.forEach(studentId => {
-            distinctStudents.add(studentId.toString()); // Convert ObjectId to string for uniqueness
-        });
+        totalStudents += record.studentsPresent.length;
     });
-    return distinctStudents.size;
+
+    return totalStudents;
 };
 
 
