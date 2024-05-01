@@ -15,9 +15,9 @@ const AllotedSchema=new Schema(
         password:{
             type:String
         },
-        EmergencyPhoneNo:{
-            type:String
-        },
+        // EmergencyPhoneNo:{
+        //     type:String
+        // },
         Gender:{
             type:String
         },
