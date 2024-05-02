@@ -200,15 +200,15 @@ app.post('/allot', async (req, res) => {
     // Update student's room number in the User schema
     student.roomNo = availableRoom.Room_No;
     await student.save();
-
+    const userId = allottedStudent._id;
     // Update room details
     availableRoom.capacity--; // Decrement room capacity
-    availableRoom.copystudents.push(studentId); // Add student to the room's list of students
+    availableRoom.copystudents.push(userId); // Add student to the room's list of students
     if (availableRoom.capacity === 0) {
       availableRoom.availability = false; // Set availability to false if room is full
     }
     await availableRoom.save();
-    
+    //
     await User.deleteOne({ _id: studentId });
 
     return res.status(200).json({ message: 'Room allotted successfully', roomNo: availableRoom.Room_No });
@@ -304,6 +304,46 @@ app.post('/allocate-mess-duty', async (req, res) => {
   }
 });
 
+const mongoose = require('mongoose');
+
+// Route to vacate a room and delete user data
+app.post('/vacate-room', async (req, res) => {
+  try {
+    const { userId, roomId } = req.body; // Extract userId and roomId from req.body
+    console.log('User ID:', userId);
+    console.log('Room ID:', roomId);
+
+    const roomObjectId = new mongoose.Types.ObjectId(roomId);
+    console.log('Room ID (ObjectId):', roomObjectId);
+    // Delete the user from Alloted schema
+    const deletedUser = await Alloted.findByIdAndDelete(userId);
+    if (!deletedUser) {
+      console.error('User not found or deletion failed');
+      return res.status(404).json({ error: 'User not found or deletion failed' });
+    }
+
+    
+    const updatedRoom = await Room.findByIdAndUpdate(
+      roomId,
+      {
+        $pull: { copystudents: userId }, // Remove userId from copystudents array
+        $inc: { capacity: 1 }, // Increment capacity by 1
+        $set: { availability: true } // Set availability to true
+      },
+      { new: true } // Return the updated room document
+    );
+
+    if (!updatedRoom) {
+      console.error('Room not found or update failed');
+      return res.status(404).json({ error: 'Room not found or update failed' });
+    }
+
+    return res.status(200).json({ message: 'Room vacated successfully' });
+  } catch (error) {
+    console.error('Error vacating room:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
 
@@ -421,34 +461,34 @@ app.get('/totalattendance', async (req, res) => {
   }
 });
 
-app.post('/messbill', async (req, res) => {
-  const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-  const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
-  const month = date.substring(0, 7); 
-  const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
-  const NumberofUser = await getTotalStudents(); 
-  const esscharge = TotalEstablishmentcharge / NumberofUser;
-  const RatePerDay=TotalFoodCharge/TotalAttendance;
+// app.post('/messbill', async (req, res) => {
+//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+//   const month = date.substring(0, 7); 
+//   const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
+//   const NumberofUser = await getTotalStudents(); 
+//   const esscharge = TotalEstablishmentcharge / NumberofUser;
+//   const RatePerDay=TotalFoodCharge/TotalAttendance;
 
   
-  const MessBill = new MessBillSchema({
-    date,
-    NumberofUser,
-    TotalEstablishmentcharge,
-    TotalFoodCharge,
-    TotalExpense,
-    esscharge,
-    TotalAttendance,
-    RatePerDay, 
-  });
+//   const MessBill = new MessBillSchema({
+//     date,
+//     NumberofUser,
+//     TotalEstablishmentcharge,
+//     TotalFoodCharge,
+//     TotalExpense,
+//     esscharge,
+//     TotalAttendance,
+//     RatePerDay, 
+//   });
 
-  try {
-    await MessBill.save();
-    res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to calculate and save mess bill' });
-  }
-});
+//   try {
+//     await MessBill.save();
+//     res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+//   } catch (error) {
+//     res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+//   }
+// });
 
 
 
@@ -507,6 +547,62 @@ async function getTotalStudents() {
 //   }
 // }
 
+
+// app.post('/messbill', async (req, res) => {
+//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+//   const month = date.substring(0, 7); 
+//   const { totalAttendanceDays, totalStudents } = await attdce.countTotalStudentsInMonth(month);
+//   const NumberofUser = await getTotalStudents(); 
+//   const esscharge = TotalEstablishmentcharge / NumberofUser;
+//   const RatePerDay = TotalFoodCharge / totalAttendanceDays * totalStudents;
+
+//   const MessBill = new MessBillSchema({
+//     date,
+//     NumberofUser,
+//     TotalEstablishmentcharge,
+//     TotalFoodCharge,
+//     TotalExpense,
+//     esscharge,
+//     TotalAttendance: totalAttendanceDays * totalStudents,
+//     RatePerDay, 
+//   });
+
+//   try {
+//     await MessBill.save();
+//     res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+//   } catch (error) {
+//     res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+//   }
+// });
+// app.post('/messbill', async (req, res) => {
+//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+//   const month = date.substring(0, 7); 
+//   const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
+//   console.log(TotalAttendance);
+//   const NumberofUser = await getTotalStudents(); 
+//   const esscharge = TotalEstablishmentcharge / NumberofUser;
+//   const RatePerDay = TotalFoodCharge / TotalAttendance;
+
+//   const MessBill = new MessBillSchema({
+//       date,
+//       NumberofUser,
+//       TotalEstablishmentcharge,
+//       TotalFoodCharge,
+//       TotalExpense,
+//       esscharge,
+//       TotalAttendance,
+//       RatePerDay, 
+//   });
+
+//   try {
+//       await MessBill.save();
+//       res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+//   } catch (error) {
+//       res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+//   }
+// });
 
 
 // ------------------------------
