@@ -12,9 +12,12 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const bcrypt= require('bcryptjs');
+const jwt=require('jsonwebtoken');
+const dotenv=require('dotenv');
+dotenv.config()
 
 const router = express.Router();
-//
 
 const app = express();
 const port = 5000;
@@ -126,31 +129,69 @@ app.get('/attendance', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 app.post('/attendance', async (req, res) => {
+  const { date, studentsPresent } = req.body;
+
   try {
-    const { date, studentsPresent } = req.body;
+      // Find or create attendance record for the given date
+      let attendanceRecord = await attdce.findOne({ date });
+      if (!attendanceRecord) {
+          attendanceRecord = new attdce({ date, studentsPresent });
+      } else {
+          // Merge studentsPresent array with existing record
+          attendanceRecord.studentsPresent = [...new Set([...attendanceRecord.studentsPresent, ...studentsPresent])];
+      }
 
-    // Check if the date is empty
-    if (!date) {
-      return res.status(400).json({ message: 'Date is required' });
-    }
+      // Update absence streaks for each student
+      for (const studentId of studentsPresent) {
+          let student = await Alloted.findById(studentId);
+          if (student) {
+              // Initialize absenceStreaks as a Map if it's not already
+              if (!student.absenceStreaks) {
+                  student.absenceStreaks = new Map();
+              }
 
-    // Create new attendance record
-    const attendance = new attdce({
-      date,
-      studentsPresent,
-    });
+              // Increment absence streak for this student
+              const currentStreak = student.absenceStreaks.get(date) || 0;
+              student.absenceStreaks.set(date, currentStreak + 1);
+              await student.save();
+          }
+      }
 
-    // Save the attendance record to the database
-    const savedAttendance = await attendance.save();
+      // Save the attendance record
+      await attendanceRecord.save();
 
-    res.status(201).json({ message: 'Attendance saved successfully', attendance: savedAttendance });
+      res.status(200).json({ message: 'Attendance saved successfully', attendanceRecord });
   } catch (error) {
-    console.error('Error saving attendance:', error);
-    res.status(500).json({ message: 'Server error' });
+      console.error('Error saving attendance:', error);
+      res.status(500).json({ error: 'Failed to save attendance' });
   }
 });
+
+// app.post('/attendance', async (req, res) => {
+//   try {
+//     const { date, studentsPresent } = req.body;
+
+//     // Check if the date is empty
+//     if (!date) {
+//       return res.status(400).json({ message: 'Date is required' });
+//     }
+
+//     // Create new attendance record
+//     const attendance = new attdce({
+//       date,
+//       studentsPresent,
+//     });
+
+//     // Save the attendance record to the database
+//     const savedAttendance = await attendance.save();
+
+//     res.status(201).json({ message: 'Attendance saved successfully', attendance: savedAttendance });
+//   } catch (error) {
+//     console.error('Error saving attendance:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
 //
 
 // ----------------user------------------------------
@@ -171,13 +212,17 @@ app.post('/allot', async (req, res) => {
     if (!availableRoom) {
       return res.status(400).json({ error: 'No available rooms' });
     }
+    const salt=await bcrypt.genSalt(10)
+    const hash=await bcrypt.hash(student.PhoneNo,salt)
+    
+
 
     // Create a new document in the Alloted schema
     const allottedStudent = new Alloted({
       Name: student.Name,
       AdmNo:student.AdmNo,
       PhoneNo:student.PhoneNo,
-      password:student.PhoneNo,
+      password:hash,
       Degree:student.Degree,
       AdmNo:student.AdmNo,
       YearOfStudy:student.YearOfStudy,
@@ -219,7 +264,9 @@ app.post('/allot', async (req, res) => {
   }
 });
 
-
+const createToken=(id)=>{
+  return jwt.sign({id},process.env.SECRET,{expiresIn:'2d'})
+}
 app.get('/allotted-details', async (req, res) => {
   try {
     // Fetch allotted details from the database and sort them by room number in ascending order
@@ -306,17 +353,17 @@ app.post('/allocate-mess-duty', async (req, res) => {
 });
 
 const mongoose = require('mongoose');
+
 const AllotedSchema = require('./models/AllotedSchema');
+
+
+const { Types } = mongoose;
 
 // Route to vacate a room and delete user data
 app.post('/vacate-room', async (req, res) => {
   try {
-    const { userId, roomId } = req.body; // Extract userId and roomId from req.body
-    console.log('User ID:', userId);
-    console.log('Room ID:', roomId);
-
-    const roomObjectId = new mongoose.Types.ObjectId(roomId);
-    console.log('Room ID (ObjectId):', roomObjectId);
+    const { userId, roomNo } = req.body; // Extract userId and roomNo from req.body
+    console.log(roomNo);
     // Delete the user from Alloted schema
     const deletedUser = await Alloted.findByIdAndDelete(userId);
     if (!deletedUser) {
@@ -324,9 +371,9 @@ app.post('/vacate-room', async (req, res) => {
       return res.status(404).json({ error: 'User not found or deletion failed' });
     }
 
-    
-    const updatedRoom = await Room.findByIdAndUpdate(
-      roomId,
+    // Find the room by roomNo and update it
+    const updatedRoom = await Room.findOneAndUpdate(
+      { Room_No: roomNo },
       {
         $pull: { copystudents: userId }, // Remove userId from copystudents array
         $inc: { capacity: 1 }, // Increment capacity by 1
@@ -364,10 +411,16 @@ app.post('/complaint',async(req,res)=>
   
 })
 
-
-
-
-
+app.post('/login', async(req, res) => {
+  try {
+      const { AdmNo, password } = req.body;
+      const user = await Alloted.login(AdmNo, password);
+      const token = createToken(user._id);
+      res.status(200).json({ user, token });
+  } catch (error) {
+      res.status(401).json({ error: error.message });
+  }
+});
 
 
 // Add this route to your Express.js backend
@@ -481,149 +534,167 @@ app.get('/totalattendance', async (req, res) => {
   }
 });
 
-// app.post('/messbill', async (req, res) => {
-//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
-//   const month = date.substring(0, 7); 
-//   const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
-//   const NumberofUser = await getTotalStudents(); 
-//   const esscharge = TotalEstablishmentcharge / NumberofUser;
-//   const RatePerDay=TotalFoodCharge/TotalAttendance;
-
-  
-//   const MessBill = new MessBillSchema({
-//     date,
-//     NumberofUser,
-//     TotalEstablishmentcharge,
-//     TotalFoodCharge,
-//     TotalExpense,
-//     esscharge,
-//     TotalAttendance,
-//     RatePerDay, 
-//   });
-
-//   try {
-//     await MessBill.save();
-//     res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
-//   } catch (error) {
-//     res.status(500).json({ error: 'Failed to calculate and save mess bill' });
-//   }
-// });
 
 
+app.post('/messbill', async (req, res) => {
+  const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+  const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+  const month = date.substring(0, 7);
 
-
-async function getTotalStudents() {
   try {
-    const totalStudents = await Alloted.countStudents();
-    console.log('Total number of students:', totalStudents);
-    return totalStudents;
-  } catch (err) {
-    console.error('Error counting students:', err);
+      // Calculate the total attendance for the specified month
+      let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
+      let NoOfUser=await Alloted.countStudents();
+      console.log("NoOfUser=",NoOfUser)
+      console.log("attdce taken",NoOfAttendanceTaken)
+      let TotalAttendance=NoOfAttendanceTaken*NoOfUser;
+      console.log("total",TotalAttendance)
+      // Get all students
+      const students = await Alloted.find();
+    //total=noofuserxtotal presnt day
+      let TotalAbsentDays = 0;
+      students.forEach(student => {
+          let absentDaysInSequence = 0;
+          let lastAbsentDate = null;
+        
+          // 
+          // Iterate through the days of the month
+          for (let day = 1; day <= 30; day++) {
+              const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
+              console.log(currentDate)
+              // Check if the student is absent on the current date
+              if (student.absenceStreaks.get(currentDate) > 0) {
+                  // If the student is absent, check if it's part of a consecutive absence streak
+                  if (!lastAbsentDate || day - lastAbsentDate === 1) {
+                      absentDaysInSequence++;
+                  } else {
+                      absentDaysInSequence = 1; // Reset streak if not consecutive
+                  }
+                  lastAbsentDate = day;
+                  console.log(lastAbsentDate);
+                  console.log("hello",absentDaysInSequence);
+                  
+                 
+                  // Check if the streak is a multiple of 7 days
+                  if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
+                    console.log("if");
+                      TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
+                      TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
+                      console.log("if",TotalAttendance);
+                    }
+
+              } else {
+                  absentDaysInSequence = 0;
+                  console.log("else"); // Reset streak if student is present
+              }
+          }
+      });
+
+      // Calculate essential charge and rate per day
+      const esscharge = TotalEstablishmentcharge / students.length;
+      const RatePerDay = (TotalFoodCharge-Fine) / TotalAttendance;
+
+      // Create a new MessBill instance
+      const MessBill = new MessBillSchema({
+          date,
+          NumberofUser: students.length,
+          TotalEstablishmentcharge,
+          TotalFoodCharge,
+          TotalExpense,
+          esscharge,
+          TotalAttendance,
+          RatePerDay,
+          Fine,
+      });
+
+      // Save the MessBill instance and update absence streaks for students
+      await MessBill.save();
+      await Promise.all(students.map(student => student.save()));
+
+      res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+  } catch (error) {
+      console.error('Error calculating and saving mess bill:', error);
+      res.status(500).json({ error: 'Failed to calculate and save mess bill' });
   }
-}
-// async function counts(req, res)  {
+});
+
+// async function calculateMessCutForStudents(month,Fine) {
 //   try {
-//     const result = await attdce.aggregate([
-//       {
-//         $unwind: '$studentsPresent' // Unwind the studentsPresent array
-//       },
-//       {
-//         $group: {
-//           _id: '$studentsPresent', // Group by student ID
-//           count: { $sum: 1 } // Count the occurrences
-//         }
-//       },
-//       {
-//         $lookup: {
-//           from: 'users', // Look up data from the 'users' collection
-//           localField: '_id',
-//           foreignField: '_id',
-//           as: 'studentData'
-//         }
-//       },
-//       {
-//         $unwind: '$studentData' // Unwind the studentData array
-//       },
-//       {
-//         $project: {
-//           _id: 0, // Exclude the _id field
-//           studentId: '$_id',
-//           studentName: '$studentData.Name',
-//           count: 1 // Include the count field
+//     // Calculate the total attendance for the specified month
+//     let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
+//     let NoOfUser = await Alloted.countStudents();
+//     let TotalAttendance = NoOfAttendanceTaken * NoOfUser;
+//
+//     // Get all students
+//     const students = await Alloted.find();
+
+//     let TotalAbsentDays = 0;
+//     let MessCutDetails = [];
+
+//     students.forEach(student => {
+//       let absentDaysInSequence = 0;
+//       let lastAbsentDate = null;
+//       let absentStreaks = [];
+
+//       // Iterate through the days of the month
+//       for (let day = 1; day <= 30; day++) {
+//         const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
+
+//         // Check if the student is absent on the current date
+//         if (student.absenceStreaks.get(currentDate) > 0) {
+//           // If the student is absent, check if it's part of a consecutive absence streak
+//           if (!lastAbsentDate || day - lastAbsentDate === 1) {
+//             absentDaysInSequence++;
+//           } else {
+//             absentDaysInSequence = 1; // Reset streak if not consecutive
+//           }
+//           lastAbsentDate = day;
+
+//           // Check if the streak is a multiple of 7 days
+//           if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
+//             TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
+//             TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
+
+//             // Calculate mess cut for this streak
+//             const messCut = (Fine / 7) * 7; // Fine divided evenly for each of the 7 days
+//             absentStreaks.push({ startDate: currentDate, endDate: `${month}-${lastAbsentDate.toString().padStart(2, '0')}`, messCut });
+//           }
+//         } else {
+//           absentDaysInSequence = 0; // Reset streak if student is present
 //         }
 //       }
-//     ]);
 
-//     const studentsPresentCounts = {};
-//     result.forEach(item => {
-//       studentsPresentCounts[item.studentName] = item.count;
+//       if (absentStreaks.length > 0) {
+//         MessCutDetails.push({ studentId: student._id, absentStreaks });
+//       }
 //     });
-//     console.log(studentsPresentCounts);
-//     // res.json(studentsPresentCounts);
+
+//     return MessCutDetails;
 //   } catch (error) {
-//     console.error('Error getting attendance count for students:', error);
-//     res.status(500).json({ error: 'Internal Server Error' });
+//     console.error('Error calculating mess cut for students:', error);
+//     throw new Error('Failed to calculate mess cut for students');
 //   }
 // }
-
-
-// app.post('/messbill', async (req, res) => {
-//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
-//   const month = date.substring(0, 7); 
-//   const { totalAttendanceDays, totalStudents } = await attdce.countTotalStudentsInMonth(month);
-//   const NumberofUser = await getTotalStudents(); 
-//   const esscharge = TotalEstablishmentcharge / NumberofUser;
-//   const RatePerDay = TotalFoodCharge / totalAttendanceDays * totalStudents;
-
-//   const MessBill = new MessBillSchema({
-//     date,
-//     NumberofUser,
-//     TotalEstablishmentcharge,
-//     TotalFoodCharge,
-//     TotalExpense,
-//     esscharge,
-//     TotalAttendance: totalAttendanceDays * totalStudents,
-//     RatePerDay, 
+// const month = '2024-05';
+// const Fine = 100 // Specify the month for which you want to calculate the mess cut
+// calculateMessCutForStudents(month)
+//   .then(messCutDetails => {
+//     console.log('Mess Cut Details:', messCutDetails);
+//     // Handle the mess cut details as needed (e.g., save to database, return in API response, etc.)
+//   })
+//   .catch(error => {
+//     console.error('Error calculating mess cut for students:', error);
+//     // Handle the error appropriately
 //   });
-
+// async function getTotalStudents() {
 //   try {
-//     await MessBill.save();
-//     res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
-//   } catch (error) {
-//     res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+//     const totalStudents = await Alloted.countStudents();
+//     console.log('Total number of students:', totalStudents);
+//     return totalStudents;
+//   } catch (err) {
+//     console.error('Error counting students:', err);
 //   }
-// });
-// app.post('/messbill', async (req, res) => {
-//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
-//   const month = date.substring(0, 7); 
-//   const TotalAttendance = await attdce.countTotalStudentsInMonth(month);
-//   console.log(TotalAttendance);
-//   const NumberofUser = await getTotalStudents(); 
-//   const esscharge = TotalEstablishmentcharge / NumberofUser;
-//   const RatePerDay = TotalFoodCharge / TotalAttendance;
-
-//   const MessBill = new MessBillSchema({
-//       date,
-//       NumberofUser,
-//       TotalEstablishmentcharge,
-//       TotalFoodCharge,
-//       TotalExpense,
-//       esscharge,
-//       TotalAttendance,
-//       RatePerDay, 
-//   });
-
-//   try {
-//       await MessBill.save();
-//       res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
-//   } catch (error) {
-//       res.status(500).json({ error: 'Failed to calculate and save mess bill' });
-//   }
-// });
-
+// }
 
 // ------------------------------
 // Start the server
