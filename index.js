@@ -6,6 +6,7 @@ const attdce=require('./models/attendanceSchema');
 const Alloted=require('./models/AllotedSchema')
 const MessDutySchema=require('./models/MessDutyAllocation');
 const MessBillSchema=require('./models/MessBillSchema');
+const ComplaintSchema=require('./models/ComplaintSchema');
 const Room=require('./models/Room');
 const cors = require('cors');
 const multer = require('multer');
@@ -305,6 +306,7 @@ app.post('/allocate-mess-duty', async (req, res) => {
 });
 
 const mongoose = require('mongoose');
+const AllotedSchema = require('./models/AllotedSchema');
 
 // Route to vacate a room and delete user data
 app.post('/vacate-room', async (req, res) => {
@@ -344,6 +346,24 @@ app.post('/vacate-room', async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+app.post('/complaint',async(req,res)=>
+{
+  try {
+    const{name,complaint}=req.body
+ //g name=Alloted.Name;
+  const comp=new ComplaintSchema({
+    Name:name,
+    Complaint:complaint
+  })
+  await comp.save()
+  res.status(200).json({ message: 'Data copied to another schema successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+  
+})
+
 
 
 
