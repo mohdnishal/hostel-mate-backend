@@ -411,6 +411,17 @@ app.post('/complaint',async(req,res)=>
   
 })
 
+app.get('/viewcomplaint',async(req,res)=>{
+  try {
+    const complaint=await ComplaintSchema.findOne();
+  res.json(complaint);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+
+  }
+  
+
+})
 app.post('/login', async(req, res) => {
   try {
       const { AdmNo, password } = req.body;
