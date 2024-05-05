@@ -119,7 +119,11 @@ const AllotedSchema=new Schema(
         },
         Room_No:{
             type:Number
-        }
+        }, absenceStreaks: {
+            type: Map,
+            of: Number, // Key is date, value is absence streak
+            default: new Map(), // Initialize absenceStreaks as an empty Map
+        },
     }
 )
 AllotedSchema.statics.countStudents = async function () {
