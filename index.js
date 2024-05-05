@@ -6,11 +6,16 @@ const attdce=require('./models/attendanceSchema');
 const Alloted=require('./models/AllotedSchema')
 const MessDutySchema=require('./models/MessDutyAllocation');
 const MessBillSchema=require('./models/MessBillSchema');
+const ComplaintSchema=require('./models/ComplaintSchema');
 const Room=require('./models/Room');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const bcrypt= require('bcryptjs');
+const jwt=require('jsonwebtoken');
+const dotenv=require('dotenv');
+dotenv.config()
 
 const router = express.Router();
 
@@ -207,13 +212,17 @@ app.post('/allot', async (req, res) => {
     if (!availableRoom) {
       return res.status(400).json({ error: 'No available rooms' });
     }
+    const salt=await bcrypt.genSalt(10)
+    const hash=await bcrypt.hash(student.PhoneNo,salt)
+    
+
 
     // Create a new document in the Alloted schema
     const allottedStudent = new Alloted({
       Name: student.Name,
       AdmNo:student.AdmNo,
       PhoneNo:student.PhoneNo,
-      password:student.PhoneNo,
+      password:hash,
       Degree:student.Degree,
       AdmNo:student.AdmNo,
       YearOfStudy:student.YearOfStudy,
@@ -255,7 +264,9 @@ app.post('/allot', async (req, res) => {
   }
 });
 
-
+const createToken=(id)=>{
+  return jwt.sign({id},process.env.SECRET,{expiresIn:'2d'})
+}
 app.get('/allotted-details', async (req, res) => {
   try {
     // Fetch allotted details from the database and sort them by room number in ascending order
@@ -342,7 +353,12 @@ app.post('/allocate-mess-duty', async (req, res) => {
 });
 
 const mongoose = require('mongoose');
+
+const AllotedSchema = require('./models/AllotedSchema');
+
+
 const { Types } = mongoose;
+
 // Route to vacate a room and delete user data
 app.post('/vacate-room', async (req, res) => {
   try {
@@ -378,6 +394,33 @@ app.post('/vacate-room', async (req, res) => {
   }
 });
 
+app.post('/complaint',async(req,res)=>
+{
+  try {
+    const{name,complaint}=req.body
+ //g name=Alloted.Name;
+  const comp=new ComplaintSchema({
+    Name:name,
+    Complaint:complaint
+  })
+  await comp.save()
+  res.status(200).json({ message: 'Data copied to another schema successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+  
+})
+
+app.post('/login', async(req, res) => {
+  try {
+      const { AdmNo, password } = req.body;
+      const user = await Alloted.login(AdmNo, password);
+      const token = createToken(user._id);
+      res.status(200).json({ user, token });
+  } catch (error) {
+      res.status(401).json({ error: error.message });
+  }
+});
 
 
 // Add this route to your Express.js backend

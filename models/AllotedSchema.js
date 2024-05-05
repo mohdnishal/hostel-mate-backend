@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const bcrypt= require('bcryptjs');
+
 const AllotedSchema=new Schema(
     {
         Name:{
@@ -134,5 +136,20 @@ AllotedSchema.statics.countStudents = async function () {
       throw new Error('Error counting students');
     }
   };
+  AllotedSchema.statics.login = async function(AdmNo, password) {
+    const user = await this.findOne({ AdmNo });
+
+    if (!user) {
+        throw new Error("Invalid Username or Password");
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+        throw new Error("Invalid Username or Password");
+    }
+
+    return user;
+}; 
   
 module.exports=mongoose.model('user',AllotedSchema)
