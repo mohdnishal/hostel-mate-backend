@@ -7,6 +7,7 @@ const Alloted=require('./models/AllotedSchema')
 const MessDutySchema=require('./models/MessDutyAllocation');
 const MessBillSchema=require('./models/MessBillSchema');
 const ComplaintSchema=require('./models/ComplaintSchema');
+const MessBillGen = require('./models/MessBillGen');
 const Room=require('./models/Room');
 const cors = require('cors');
 const multer = require('multer');
@@ -547,32 +548,114 @@ app.get('/totalattendance', async (req, res) => {
 
 
 
+// app.post('/messbill', async (req, res) => {
+//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+//   const month = date.substring(0, 7);
+
+//   try {
+//       // Calculate the total attendance for the specified month
+//       let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
+//       let NoOfUser=await Alloted.countStudents();
+//       console.log("NoOfUser=",NoOfUser)
+//       console.log("attdce taken",NoOfAttendanceTaken)
+//       let TotalAttendance=NoOfAttendanceTaken*NoOfUser;
+//       console.log("total",TotalAttendance)
+//       // Get all students
+//       const students = await Alloted.find();
+//     //total=noofuserxtotal presnt day
+//       let TotalAbsentDays = 0;
+//       students.forEach(student => {
+//           let absentDaysInSequence = 0;
+//           let lastAbsentDate = null;
+        
+//           // 
+//           // Iterate through the days of the month
+//           for (let day = 1; day <= 30; day++) {
+//               const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
+//               console.log(currentDate)
+//               // Check if the student is absent on the current date
+//               if (student.absenceStreaks.get(currentDate) > 0) {
+//                   // If the student is absent, check if it's part of a consecutive absence streak
+//                   if (!lastAbsentDate || day - lastAbsentDate === 1) {
+//                       absentDaysInSequence++;
+//                   } else {
+//                       absentDaysInSequence = 1; // Reset streak if not consecutive
+//                   }
+//                   lastAbsentDate = day;
+//                   console.log(lastAbsentDate);
+//                   console.log("hello",absentDaysInSequence);
+                  
+                 
+//                   // Check if the streak is a multiple of 7 days
+//                   if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
+//                     console.log("if");
+//                       TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
+//                       TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
+//                       console.log("if",TotalAttendance);
+//                     }
+
+//               } else {
+//                   absentDaysInSequence = 0;
+//                   console.log("else"); // Reset streak if student is present
+//               }
+//           }
+//       });
+
+//       // Calculate essential charge and rate per day
+//       const esscharge = TotalEstablishmentcharge / students.length;
+//       const RatePerDay = (TotalFoodCharge-Fine) / TotalAttendance;
+
+//       // Create a new MessBill instance
+//       const MessBill = new MessBillSchema({
+//           date,
+//           NumberofUser: students.length,
+//           TotalEstablishmentcharge,
+//           TotalFoodCharge,
+//           TotalExpense,
+//           esscharge,
+//           TotalAttendance,
+//           RatePerDay,
+//           Fine,
+//       });
+
+//       // Save the MessBill instance and update absence streaks for students
+//       await MessBill.save();
+//       await Promise.all(students.map(student => student.save()));
+
+//       res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
+//   } catch (error) {
+//       console.error('Error calculating and saving mess bill:', error);
+//       res.status(500).json({ error: 'Failed to calculate and save mess bill' });
+//   }
+// });
+
 app.post('/messbill', async (req, res) => {
   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-  const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+  
   const month = date.substring(0, 7);
 
   try {
       // Calculate the total attendance for the specified month
       let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
-      let NoOfUser=await Alloted.countStudents();
-      console.log("NoOfUser=",NoOfUser)
-      console.log("attdce taken",NoOfAttendanceTaken)
-      let TotalAttendance=NoOfAttendanceTaken*NoOfUser;
-      console.log("total",TotalAttendance)
+      let NoOfUser = await Alloted.countStudents();
+      console.log("NoOfUser=", NoOfUser);
+      console.log("attdce taken", NoOfAttendanceTaken);
+      let TotalAttendance = NoOfAttendanceTaken * NoOfUser;
+      console.log("total", TotalAttendance);
+      const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
       // Get all students
       const students = await Alloted.find();
-    //total=noofuserxtotal presnt day
+      //total=noofuserxtotal presnt day
       let TotalAbsentDays = 0;
       students.forEach(student => {
           let absentDaysInSequence = 0;
           let lastAbsentDate = null;
-        
-          // 
+
           // Iterate through the days of the month
           for (let day = 1; day <= 30; day++) {
               const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
-              console.log(currentDate)
+              console.log(currentDate);
               // Check if the student is absent on the current date
               if (student.absenceStreaks.get(currentDate) > 0) {
                   // If the student is absent, check if it's part of a consecutive absence streak
@@ -583,27 +666,31 @@ app.post('/messbill', async (req, res) => {
                   }
                   lastAbsentDate = day;
                   console.log(lastAbsentDate);
-                  console.log("hello",absentDaysInSequence);
-                  
-                 
+                  console.log("hello", absentDaysInSequence);
+
+
                   // Check if the streak is a multiple of 7 days
                   if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
-                    console.log("if");
+                      console.log("if");
                       TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
                       TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
-                      console.log("if",TotalAttendance);
-                    }
+                      console.log("if", TotalAttendance);
+                  }
 
               } else {
                   absentDaysInSequence = 0;
                   console.log("else"); // Reset streak if student is present
               }
           }
+
+          // Calculate mess cut for the student
+          const messCut = (TotalAttendance - student.absentDaysInMonth) ;
+          console.log(`Mess cut for ${student.Name} is ${messCut}`);
       });
 
       // Calculate essential charge and rate per day
       const esscharge = TotalEstablishmentcharge / students.length;
-      const RatePerDay = (TotalFoodCharge-Fine) / TotalAttendance;
+      const RatePerDay = (TotalFoodCharge - Fine) / TotalAttendance;
 
       // Create a new MessBill instance
       const MessBill = new MessBillSchema({
@@ -628,84 +715,147 @@ app.post('/messbill', async (req, res) => {
       res.status(500).json({ error: 'Failed to calculate and save mess bill' });
   }
 });
+// GET endpoint to fetch the latest mess bill data
+app.get('/latest-messbill', async (req, res) => {
+  try {
+    // Retrieve the latest mess bill data from the database
+    const latestMessBill = await MessBillSchema.findOne({}, {}, { sort: { 'date': -1 } });
 
-// async function calculateMessCutForStudents(month,Fine) {
-//   try {
-//     // Calculate the total attendance for the specified month
-//     let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
-//     let NoOfUser = await Alloted.countStudents();
-//     let TotalAttendance = NoOfAttendanceTaken * NoOfUser;
-//
-//     // Get all students
-//     const students = await Alloted.find();
+    if (!latestMessBill) {
+      return res.status(404).json({ error: 'Latest mess bill data not found' });
+    }
 
-//     let TotalAbsentDays = 0;
-//     let MessCutDetails = [];
+    // Send the latest mess bill data to the frontend
+    res.status(200).json({ messBillData: latestMessBill });
+  } catch (error) {
+    console.error('Error fetching latest mess bill data:', error);
+    res.status(500).json({ error: 'Failed to fetch latest mess bill data' });
+  }
+});
 
-//     students.forEach(student => {
-//       let absentDaysInSequence = 0;
-//       let lastAbsentDate = null;
-//       let absentStreaks = [];
 
-//       // Iterate through the days of the month
-//       for (let day = 1; day <= 30; day++) {
-//         const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
 
-//         // Check if the student is absent on the current date
-//         if (student.absenceStreaks.get(currentDate) > 0) {
-//           // If the student is absent, check if it's part of a consecutive absence streak
-//           if (!lastAbsentDate || day - lastAbsentDate === 1) {
-//             absentDaysInSequence++;
-//           } else {
-//             absentDaysInSequence = 1; // Reset streak if not consecutive
-//           }
-//           lastAbsentDate = day;
 
-//           // Check if the streak is a multiple of 7 days
-//           if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
-//             TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
-//             TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
 
-//             // Calculate mess cut for this streak
-//             const messCut = (Fine / 7) * 7; // Fine divided evenly for each of the 7 days
-//             absentStreaks.push({ startDate: currentDate, endDate: `${month}-${lastAbsentDate.toString().padStart(2, '0')}`, messCut });
-//           }
-//         } else {
-//           absentDaysInSequence = 0; // Reset streak if student is present
-//         }
-//       }
 
-//       if (absentStreaks.length > 0) {
-//         MessCutDetails.push({ studentId: student._id, absentStreaks });
-//       }
-//     });
 
-//     return MessCutDetails;
-//   } catch (error) {
-//     console.error('Error calculating mess cut for students:', error);
-//     throw new Error('Failed to calculate mess cut for students');
-//   }
-// }
-// const month = '2024-05';
-// const Fine = 100 // Specify the month for which you want to calculate the mess cut
-// calculateMessCutForStudents(month)
-//   .then(messCutDetails => {
-//     console.log('Mess Cut Details:', messCutDetails);
-//     // Handle the mess cut details as needed (e.g., save to database, return in API response, etc.)
-//   })
-//   .catch(error => {
-//     console.error('Error calculating mess cut for students:', error);
-//     // Handle the error appropriately
-//   });
-// async function getTotalStudents() {
-//   try {
-//     const totalStudents = await Alloted.countStudents();
-//     console.log('Total number of students:', totalStudents);
-//     return totalStudents;
-//   } catch (err) {
-//     console.error('Error counting students:', err);
-//   }
-// }
+// Your existing route handler for generating mess bills
+app.post('/messbilll', async (req, res) => {
+  const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
+  const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
+  const month = date.substring(0, 7);
+
+  try {
+    // Calculate the total attendance for the specified month
+    let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
+    let NoOfUser = await Alloted.countStudents();
+    console.log("NoOfUser=", NoOfUser);
+    console.log("attdce taken", NoOfAttendanceTaken);
+    let TotalAttendance = NoOfAttendanceTaken * NoOfUser;
+    console.log("total", TotalAttendance);
+
+    // Get all students
+    const students = await Alloted.find();
+    const messGen = await MessBillSchema.findOne(); // Assuming month and year fields in the schema
+
+    // Check if the messGen object exists and has valid RatePerDay and esscharge values
+    if (messGen && messGen.RatePerDay && messGen.esscharge) {
+      // Create an array to hold mess bills for all students
+      let messBills = [];
+
+      // Iterate through each student to calculate and store their mess bill
+      for (const student of students) {
+        let absentDaysInSequence = 0;
+        let lastAbsentDate = null;
+        let totalAbsentDays = 0;
+
+        // Iterate through the days of the month
+        for (let day = 1; day <= 30; day++) {
+          const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
+          console.log(currentDate);
+
+          // Check if the student is absent on the current date
+          if (student.absenceStreaks.get(currentDate) > 0) {
+            // If the student is absent, check if it's part of a consecutive absence streak
+            if (!lastAbsentDate || day - lastAbsentDate === 1) {
+              absentDaysInSequence++;
+            } else {
+              absentDaysInSequence = 1; // Reset streak if not consecutive
+            }
+            lastAbsentDate = day;
+            console.log(lastAbsentDate);
+            console.log("hello", absentDaysInSequence);
+
+            // Check if the streak is a multiple of 7 days
+            if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
+              console.log("if");
+              totalAbsentDays += 7; // Add multiples of 7 days to total absent days
+              console.log("if", totalAbsentDays);
+            }
+          } else {
+            absentDaysInSequence = 0;
+            console.log("else"); // Reset streak if student is present
+          }
+        }
+
+        // Calculate mess cut for the student
+        const messCut = totalAbsentDays; // You can modify this based on your mess cut logic
+
+        // Calculate amount for the student
+        const amount = (messGen.RatePerDay * (NoOfAttendanceTaken - messCut)) + messGen.esscharge;
+
+        // Create a new mess bill object for the student
+        const messBill = {
+          date,
+          Room_No: student.Room_No,
+          Name: student.Name,
+          AdmNo: student.AdmNo,
+          yearOfStudy: student.yearOfStudy,
+          Amount: amount,
+          TotalAmount: amount + Fine, // Assuming TotalAmount is Amount + Fine
+          Fine: Fine,
+          TotalAttendance: NoOfAttendanceTaken - messCut,
+        };
+
+        // Push the mess bill object to the messBills array
+        messBills.push(messBill);
+      }
+
+      // Create a new MessBillGen instance and save it
+      const messBillGen = new MessBillGen({
+        month: month,
+        messBills: messBills, // Assign the array of mess bills to the messBills field
+      });
+      await messBillGen.save();
+
+      res.status(201).json({ message: 'Mess bills calculated and saved successfully' });
+    } else {
+      console.error('RatePerDay or esscharge is missing or invalid');
+      res.status(400).json({ error: 'RatePerDay or esscharge is missing or invalid' });
+    }
+  } catch (error) {
+    console.error('Error calculating and saving mess bills:', error);
+    res.status(500).json({ error: 'Failed to calculate and save mess bills' });
+  }
+});
+// GET endpoint to fetch the mess bill of the latest date
+app.get('/messbillgen', async (req, res) => {
+  try {
+    // Retrieve the latest mess bill generated from the database
+    const latestMessBill = await MessBillGen.findOne({}, {}, { sort: { 'month': -1 } });
+
+    if (!latestMessBill) {
+      return res.status(404).json({ error: 'Latest mess bill not found' });
+    }
+
+    // Send the latest mess bill data to the frontend
+    res.status(200).json({ latestMessBill });
+  } catch (error) {
+    console.error('Error fetching latest mess bill:', error);
+    res.status(500).json({ error: 'Failed to fetch latest mess bill' });
+  }
+});
+
 
 // ------------------------------
 // Start the server
