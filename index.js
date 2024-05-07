@@ -16,13 +16,14 @@ const path = require('path');
 const bcrypt= require('bcryptjs');
 const jwt=require('jsonwebtoken');
 const dotenv=require('dotenv');
+const cookieParser = require('cookie-parser');
 dotenv.config()
-
+const { createToken, authMiddleware } = require('./middleware/middleWare');
 const router = express.Router();
 
 const app = express();
 const port = 5000;
-
+app.use(cookieParser())
 
 // Connect to MongoDB
 mongoDB();
@@ -265,9 +266,9 @@ app.post('/allot', async (req, res) => {
   }
 });
 
-const createToken=(id)=>{
-  return jwt.sign({id},process.env.SECRET,{expiresIn:'2d'})
-}
+// const createToken=(id)=>{
+//   return jwt.sign({id},process.env.SECRET,{expiresIn:'2d'})
+// }
 app.get('/allotted-details', async (req, res) => {
   try {
     // Fetch allotted details from the database and sort them by room number in ascending order
@@ -423,16 +424,44 @@ app.get('/viewcomplaint',async(req,res)=>{
   
 
 })
-app.post('/login', async(req, res) => {
+// Route to fetch all student details
+// app.get('/students',authMiddleware, async (req, res) => {
+//   try {
+//     const students = await Alloted.find();
+//     res.status(200).json(students);
+//   } catch (error) {
+//     console.error('Error fetching student details:', error.message);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+app.get('/profile',async(req,res)=>{
+  const{token}=req.cookies;
+  if(token)
+  {
+    jwt.verify(token,process.env.SECRET,{},(err,user)=>{
+      if(err) throw err;
+      res.json(user)
+    })
+  }else{
+    res.json(null)
+  }
+})
+// //
+
+
+
+app.post('/login', async (req, res) => {
   try {
-      const { AdmNo, password } = req.body;
-      const user = await Alloted.login(AdmNo, password);
-      const token = createToken(user._id);
-      res.status(200).json({ user, token });
+    const { AdmNo, password } = req.body;
+    const user = await Alloted.login(AdmNo, password);
+    const token = createToken(user._id);
+    res.cookie('token', token, { httpOnly: true }); // Set token in cookie with HttpOnly flag
+    res.status(200).json({ user, token });
   } catch (error) {
-      res.status(401).json({ error: error.message });
+    res.status(401).json({ error: error.message });
   }
 });
+
 
 
 // Add this route to your Express.js backend
