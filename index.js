@@ -835,7 +835,7 @@ app.post('/messbilll', async (req, res) => {
   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
   const month = date.substring(0, 7);
-
+//
   try {
     // Calculate the total attendance for the specified month
     let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
