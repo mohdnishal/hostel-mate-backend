@@ -1,13 +1,14 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
-const MessDutySchema = new mongoose.Schema({
+const Schema = mongoose.Schema;
+
+// Check if the model already exists to prevent OverwriteModelError
+const MessDutyModel = mongoose.models.messduties || mongoose.model('messduties', new Schema({
   roomNo: {
     type: Number,
     // required: true
   },
-  studentName: {
+  studentName:{
     type: String,
-    // required: true
   },
   fromDate: {
     type: String,
@@ -16,7 +17,11 @@ const MessDutySchema = new mongoose.Schema({
   toDate: {
     type: String,
     // required: true
+  },
+  student: {
+    type: Schema.Types.ObjectId,
+    ref: 'Alloted' // Reference to AllotedSchema model
   }
-});
+}));
 
-module.exports = mongoose.model('messduties', MessDutySchema);
+module.exports = MessDutyModel;

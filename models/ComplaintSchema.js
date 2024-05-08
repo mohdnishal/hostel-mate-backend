@@ -4,6 +4,9 @@ const ComplaintSchema=new Schema({
     Name : {
         type : String
     },
+    AdmNo :{
+        type : String
+    },
     Complaint :{
         type : String
     }

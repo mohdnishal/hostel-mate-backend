@@ -60,19 +60,28 @@ const upload = multer({ storage: storage });
 
 //-----------------/multer-------------------------------------
 //-------------- Route to handle user registration----------------
+const isValidPhoneNumber = (phoneNumber) => {
+  return /^\d{10}$/.test(phoneNumber) && !phoneNumber.startsWith('0');
+};
+
 app.post('/register', upload.fields([{ name: 'IncomeCertificate', maxCount: 1 }, { name: 'Adhar', maxCount: 1 }]), async (req, res) => {
   console.log(req.file);
   const {
     Name, PhoneNo, EmergencyPhoneNo, Gender, Degree, AdmNo, YearOfStudy, Branch, PAddress1,
     PAddress2, PPincode, PDistrict, PState, PCountry, RAddressLine1, RAddress2, RPincode, RDistrict, RState, RCountry,
-    Income, GName, GPhoneNo, Relation, GAddress1, GAddress2, GPincode, GDistrict, GState, GCountry,Priority
+    Income, GName, GPhoneNo, Relation, GAddress1, GAddress2, GPincode, GDistrict, GState, GCountry, Priority
   } = req.body;
+
+  // Validate PhoneNo
+  if (!isValidPhoneNumber(PhoneNo)) {
+    return res.status(400).json({ error: 'Invalid Phone Number' });
+  }
 
   try {
     const StudentInfo = await User.create({
       Name, PhoneNo, EmergencyPhoneNo, Gender, Degree, AdmNo, YearOfStudy, Branch, PAddress1,
       PAddress2, PPincode, PDistrict, PState, PCountry, Adhar: req.files['Adhar'][0].filename, RAddressLine1, RAddress2, RPincode, RDistrict, RState, RCountry,
-      Income, IncomeCertificate: req.files['IncomeCertificate'][0].filename, GName, GPhoneNo, Relation, GAddress1, GAddress2, GPincode, GDistrict, GState, GCountry,Priority
+      Income, IncomeCertificate: req.files['IncomeCertificate'][0].filename, GName, GPhoneNo, Relation, GAddress1, GAddress2, GPincode, GDistrict, GState, GCountry, Priority
     });
     res.json(StudentInfo);
   } catch (error) {
@@ -80,6 +89,7 @@ app.post('/register', upload.fields([{ name: 'IncomeCertificate', maxCount: 1 },
     console.error(error);
   }
 });
+
 // Route to copy user registration data to another schema
 app.post('/copyregister', async (req, res) => {
   try {
@@ -298,7 +308,7 @@ app.get('/available-rooms', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
+//
 
 app.post('/allocate-mess-duty', async (req, res) => {
   try {
@@ -335,7 +345,8 @@ app.post('/allocate-mess-duty', async (req, res) => {
             roomNo: groupStudent.Room_No,
             studentName: groupStudent.Name,
             fromDate,
-            toDate
+            toDate,
+            student: groupStudent._id ,
           });
           allocatedStudents.add(groupStudent._id); // Track allocated student
         }
@@ -396,34 +407,43 @@ app.post('/vacate-room', async (req, res) => {
   }
 });
 
-app.post('/complaint',async(req,res)=>
-{
+app.post('/complaint', authMiddleware, async (req, res) => {
   try {
-    const{name,complaint}=req.body
- //g name=Alloted.Name;
-  const comp=new ComplaintSchema({
-    Name:name,
-    Complaint:complaint
-  })
-  await comp.save()
-  res.status(200).json({ message: 'Data copied to another schema successfully' });
+    const { complaint , Name, AdmNo} = req.body;
+    // const { } = req.user; // Extract Name and AdmNo from the authenticated user
+
+    // Validate complaint data (example: check if complaint is not empty)
+    if (!complaint) {
+      return res.status(400).json({ error: 'Complaint cannot be empty' });
+    }
+
+    // Create a new complaint instance and save it to the database
+    const newComplaint = new ComplaintSchema({
+      Name,
+      AdmNo,
+      Complaint: complaint,
+    });
+
+    await newComplaint.save();
+
+    res.status(200).json({ success: true, message: 'Complaint submitted successfully' });
+  } catch (error) {
+    console.error('Error submitting complaint:', error); // Log the full error object for debugging
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
+app.get('/viewcomplaint', async (req, res) => {
+  try {
+    const complaints = await ComplaintSchema.find(); // Assuming ComplaintSchema is your Mongoose model
+    res.json(complaints);
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
-  
-})
+});
 
-app.get('/viewcomplaint',async(req,res)=>{
-  try {
-    const complaint=await ComplaintSchema.findOne();
-  res.json(complaint);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-
-  }
-  
-
-})
 // Route to fetch all student details
 // app.get('/students',authMiddleware, async (req, res) => {
 //   try {
@@ -434,18 +454,24 @@ app.get('/viewcomplaint',async(req,res)=>{
 //     res.status(500).json({ error: 'Internal server error' });
 //   }
 // });
-app.get('/profile',async(req,res)=>{
-  const{token}=req.cookies;
-  if(token)
-  {
-    jwt.verify(token,process.env.SECRET,{},(err,user)=>{
-      if(err) throw err;
-      res.json(user)
-    })
-  }else{
-    res.json(null)
+app.get('/nextpage', authMiddleware, async (req, res) => {
+  try {
+    // Extract user ID from decoded JWT token
+    const userId = req.user.id;
+    console.log("user",userId);
+    // Fetch user details from MongoDB based on user ID
+    const user = await Alloted.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.log("userers",user);
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user profile:', error.message);
+    res.status(500).json({ error: 'Server error' });
   }
-})
+});
 // //
 
 
@@ -461,7 +487,30 @@ app.post('/login', async (req, res) => {
     res.status(401).json({ error: error.message });
   }
 });
+app.post('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    const userId = req.user.id; // Extract user ID from the authenticated request
 
+    // Fetch the user from the database
+    const user = await Alloted.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Hash the new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password in the database
+    user.password = hashedNewPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 
 // Add this route to your Express.js backend
@@ -481,6 +530,19 @@ app.get('/mess-duty', async (req, res) => {
   try {
     // Fetch mess duty data from the database
     const messDutyData = await MessDutySchema.find();
+    res.json(messDutyData);
+  } catch (error) {
+    console.error('Error fetching mess duty data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+app.get('/usermessduty', authMiddleware, async (req, res) => {
+  try {
+    // Fetch mess duty data for the logged-in user from the database
+    const messDutyData = await MessDutySchema.find({ student: req.user.id }); // Assuming user ID is used for filtering
+    if (!messDutyData || messDutyData.length === 0) {
+      return res.status(404).json({ error: 'Mess duty data not found for the logged-in user' });
+    }
     res.json(messDutyData);
   } catch (error) {
     console.error('Error fetching mess duty data:', error);
@@ -884,6 +946,71 @@ app.get('/messbillgen', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch latest mess bill' });
   }
 });
+// const adminUsername = 'admin';
+// const adminPassword = 'admin123';
+
+// app.post('/login', (req, res) => {
+//   const { username, password } = req.body;
+
+//   // Check if the credentials match the admin credentials
+//   if (username === adminUsername && password === adminPassword) {
+//     // Return a success response with isAdmin set to true
+//     res.status(200).json({ user: { username }, token: 'sampleToken', isAdmin: true });
+//   } else {
+//     // Return an error response if credentials are incorrect
+//     res.status(401).json({ error: 'Invalid credentials' });
+//   }
+// });
+
+const axios = require('axios');
+// Function to fetch latitude and longitude from a PIN
+const originLat = 51.4822656; // Assuming constant origin latitude
+const originLong = -0.1933769; // Assuming constant origin longitude
+const apiKey = 'usjQkIZE02xRzD32RbpwQHjyz5dg7Hj99DoEJ3XXr5kD7u85FjTYZ6CTj2Q6vhvC';
+
+// Function to fetch distance between two points
+async function fetchDistance(destLat, destLong) {
+  try {
+    // Define the URL with origins, destinations, and API key
+    const url = `https://api-v2.distancematrix.ai/maps/api/distancematrix/json?origins=${originLat},${originLong}&destinations=${destLat},${destLong}&key=${apiKey}`;
+
+    // Make the API request
+    const response = await axios.get(url);
+    const responseData = response.data;
+
+    // Extract distance from the response
+    const distance = responseData.rows[0].elements[0].distance.text;
+
+    return distance;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Endpoint to fetch distance based on PIN
+app.get('/search', async (req, res) => {
+  try {
+    const pin = req.query.q;
+
+    if (!pin || pin.trim() === "") {
+      res.status(400).json({ error: 'PIN is empty' });
+      return;
+    }
+
+    // Fetch latitude and longitude from the geocoding API
+    const { lat, lon } = await fetchLatLng(pin);
+
+    // Calculate distance using obtained latitude and longitude
+    const distance = await fetchDistance(lat, lon);
+
+    // Send distance back to the client
+    res.json({ distance });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 // ------------------------------

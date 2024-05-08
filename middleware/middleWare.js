@@ -6,15 +6,20 @@ const createToken = (userId) => {
   };
 
 // Middleware to authenticate requests
+
+
 const authMiddleware = (req, res, next) => {
-  const token = req.cookies.token;
+  const token = req.headers.authorization;
 
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized - No token provided' });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.SECRET);
+    const tokenWithoutBearer = token.split(' ')[1];
+    console.log('Received token:', tokenWithoutBearer); // Log the received token
+    const decoded = jwt.verify(tokenWithoutBearer, process.env.SECRET);
+    console.log('Decoded token:', decoded); // Log the decoded token
     req.user = decoded;
     next();
   } catch (error) {
@@ -22,5 +27,7 @@ const authMiddleware = (req, res, next) => {
     return res.status(401).json({ error: 'Unauthorized - Invalid token' });
   }
 };
+
+
 
 module.exports = { createToken,authMiddleware };
