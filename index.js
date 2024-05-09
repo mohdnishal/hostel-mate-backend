@@ -180,31 +180,7 @@ app.post('/attendance', async (req, res) => {
   }
 });
 
-// app.post('/attendance', async (req, res) => {
-//   try {
-//     const { date, studentsPresent } = req.body;
 
-//     // Check if the date is empty
-//     if (!date) {
-//       return res.status(400).json({ message: 'Date is required' });
-//     }
-
-//     // Create new attendance record
-//     const attendance = new attdce({
-//       date,
-//       studentsPresent,
-//     });
-
-//     // Save the attendance record to the database
-//     const savedAttendance = await attendance.save();
-
-//     res.status(201).json({ message: 'Attendance saved successfully', attendance: savedAttendance });
-//   } catch (error) {
-//     console.error('Error saving attendance:', error);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
-//
 
 // ----------------user------------------------------
 
@@ -314,7 +290,7 @@ app.post('/allocate-mess-duty', async (req, res) => {
   try {
     // Initialize lastToDate to the current date plus 10 days
     let lastToDate = new Date();
-    lastToDate.setDate(lastToDate.getDate() + 10);
+    lastToDate.setDate(lastToDate.getDate() + 2);
 
     // Retrieve the last allocated date from the MessDutySchema collection
     const lastAllocation = await MessDutySchema.findOne({}, {}, { sort: { 'toDate': -1 } });
@@ -322,7 +298,7 @@ app.post('/allocate-mess-duty', async (req, res) => {
     if (lastAllocation) {
       // If there is a last allocated date, set lastToDate as the toDate of the last allocation plus 10 days
       lastToDate = new Date(lastAllocation.toDate);
-      lastToDate.setDate(lastToDate.getDate() + 10);
+      lastToDate.setDate(lastToDate.getDate() + 1);
     }
 
     // Retrieve all students
@@ -444,16 +420,7 @@ app.get('/viewcomplaint', async (req, res) => {
   }
 });
 
-// Route to fetch all student details
-// app.get('/students',authMiddleware, async (req, res) => {
-//   try {
-//     const students = await Alloted.find();
-//     res.status(200).json(students);
-//   } catch (error) {
-//     console.error('Error fetching student details:', error.message);
-//     res.status(500).json({ error: 'Internal server error' });
-//   }
-// });
+
 app.get('/nextpage', authMiddleware, async (req, res) => {
   try {
     // Extract user ID from decoded JWT token
@@ -635,88 +602,6 @@ app.get('/totalattendance', async (req, res) => {
 });
 
 
-
-// app.post('/messbill', async (req, res) => {
-//   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
-//   const TotalExpense = TotalEstablishmentcharge + TotalFoodCharge;
-//   const month = date.substring(0, 7);
-
-//   try {
-//       // Calculate the total attendance for the specified month
-//       let NoOfAttendanceTaken = await attdce.countTotalAttendanceInMonth(month);
-//       let NoOfUser=await Alloted.countStudents();
-//       console.log("NoOfUser=",NoOfUser)
-//       console.log("attdce taken",NoOfAttendanceTaken)
-//       let TotalAttendance=NoOfAttendanceTaken*NoOfUser;
-//       console.log("total",TotalAttendance)
-//       // Get all students
-//       const students = await Alloted.find();
-//     //total=noofuserxtotal presnt day
-//       let TotalAbsentDays = 0;
-//       students.forEach(student => {
-//           let absentDaysInSequence = 0;
-//           let lastAbsentDate = null;
-        
-//           // 
-//           // Iterate through the days of the month
-//           for (let day = 1; day <= 30; day++) {
-//               const currentDate = `${month}-${day.toString().padStart(2, '0')}`;
-//               console.log(currentDate)
-//               // Check if the student is absent on the current date
-//               if (student.absenceStreaks.get(currentDate) > 0) {
-//                   // If the student is absent, check if it's part of a consecutive absence streak
-//                   if (!lastAbsentDate || day - lastAbsentDate === 1) {
-//                       absentDaysInSequence++;
-//                   } else {
-//                       absentDaysInSequence = 1; // Reset streak if not consecutive
-//                   }
-//                   lastAbsentDate = day;
-//                   console.log(lastAbsentDate);
-//                   console.log("hello",absentDaysInSequence);
-                  
-                 
-//                   // Check if the streak is a multiple of 7 days
-//                   if (absentDaysInSequence >= 7 && absentDaysInSequence % 7 === 0) {
-//                     console.log("if");
-//                       TotalAbsentDays += 7; // Add multiples of 7 days to total absent days
-//                       TotalAttendance -= 7; // Subtract multiples of 7 days from total attendance
-//                       console.log("if",TotalAttendance);
-//                     }
-
-//               } else {
-//                   absentDaysInSequence = 0;
-//                   console.log("else"); // Reset streak if student is present
-//               }
-//           }
-//       });
-
-//       // Calculate essential charge and rate per day
-//       const esscharge = TotalEstablishmentcharge / students.length;
-//       const RatePerDay = (TotalFoodCharge-Fine) / TotalAttendance;
-
-//       // Create a new MessBill instance
-//       const MessBill = new MessBillSchema({
-//           date,
-//           NumberofUser: students.length,
-//           TotalEstablishmentcharge,
-//           TotalFoodCharge,
-//           TotalExpense,
-//           esscharge,
-//           TotalAttendance,
-//           RatePerDay,
-//           Fine,
-//       });
-
-//       // Save the MessBill instance and update absence streaks for students
-//       await MessBill.save();
-//       await Promise.all(students.map(student => student.save()));
-
-//       res.status(201).json({ message: 'Mess bill calculated and saved successfully' });
-//   } catch (error) {
-//       console.error('Error calculating and saving mess bill:', error);
-//       res.status(500).json({ error: 'Failed to calculate and save mess bill' });
-//   }
-// });
 
 app.post('/messbill', async (req, res) => {
   const { date, TotalEstablishmentcharge, TotalFoodCharge, Fine } = req.body;
@@ -905,10 +790,10 @@ app.post('/messbilll', async (req, res) => {
 
         // Calculate mess cut for the student
         const messCut = totalAbsentDays; // You can modify this based on your mess cut logic
-
+//
         // Calculate amount for the student
         const amount = (messGen.RatePerDay * (NoOfAttendanceTaken - messCut)) + messGen.esscharge;
-
+        await Alloted.findByIdAndUpdate(student._id, { TotalAmount: amount + Fine, TotalAttendance: NoOfAttendanceTaken - messCut});
         // Create a new mess bill object for the student
         const messBill = {
           student: student._id,
@@ -962,55 +847,16 @@ app.get('/messbillgen', async (req, res) => {
   }
 });
 
-app.get('/usermessbillgen', async (req, res) => {
-  try {
-    // Retrieve user information from the request (e.g., AdmNo from decoded token)
-    const { AdmNo } = req.user; // Assuming the user information is available in req.user
-
-    // Fetch the user's mess bill details based on AdmNo
-    const userMessBill = await MessBillGen.findOne({ 'messBills.AdmNo': AdmNo })
-      .sort({ 'month': -1 }) // Sort by month in descending order
-      .populate('messBills.student', 'Name AdmNo yearOfStudy') // Populate student details
-      .select('messBills.Amount messBills.Fine messBills.TotalAttendance'); // Select specific fields
-
-    if (!userMessBill) {
-      return res.status(404).json({ error: 'Mess bill details not found for the logged-in user' });
-    }
-
-    // Send the user's mess bill details as the response
-    res.status(200).json({ userMessBill });
-  } catch (error) {
-    console.error('Error fetching user mess bill:', error);
-    res.status(500).json({ error: 'Failed to fetch user mess bill' });
-  }
-});
 
 
 
-const axios = require('axios');
-// Function to fetch latitude and longitude from a PIN
-const originLat = 51.4822656; // Assuming constant origin latitude
-const originLong = -0.1933769; // Assuming constant origin longitude
-const apiKey = 'usjQkIZE02xRzD32RbpwQHjyz5dg7Hj99DoEJ3XXr5kD7u85FjTYZ6CTj2Q6vhvC';
 
-// Function to fetch distance between two points
-async function fetchDistance(destLat, destLong) {
-  try {
-    // Define the URL with origins, destinations, and API key
-    const url = `https://api-v2.distancematrix.ai/maps/api/distancematrix/json?origins=${originLat},${originLong}&destinations=${destLat},${destLong}&key=${apiKey}`;
 
-    // Make the API request
-    const response = await axios.get(url);
-    const responseData = response.data;
 
-    // Extract distance from the response
-    const distance = responseData.rows[0].elements[0].distance.text;
 
-    return distance;
-  } catch (error) {
-    throw error;
-  }
-}
+
+
+
 
 
 

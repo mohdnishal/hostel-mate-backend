@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Alloted = require('./AllotedSchema');
 const { Schema } = mongoose;
 
 const MessBillGenSchema = new Schema({
