@@ -962,33 +962,26 @@ app.get('/messbillgen', async (req, res) => {
   }
 });
 
-app.get('/usermessbillgen', authMiddleware, async (req, res) => {
+app.get('/usermessbillgen', async (req, res) => {
   try {
-    const token = req.headers.authorization.split(' ')[1]; // Assuming the token is passed in the Authorization header
+    // Retrieve user information from the request (e.g., AdmNo from decoded token)
+    const { AdmNo } = req.user; // Assuming the user information is available in req.user
 
-    // Decode the token to get user information (AdmNo in this case)
-    const decodedToken = jwt.verify(token, process.env.SECRET); // Assuming you're using JWT for authentication
-    const { AdmNo } = decodedToken;
-
-    // Retrieve the latest mess bill for the logged-in user from the database
-    const latestMessBill = await MessBillGen.findOne({ 'messBills.AdmNo': AdmNo }, {}, { sort: { 'month': -1 } });
-
-    if (!latestMessBill) {
-      return res.status(404).json({ error: 'Latest mess bill not found for the logged-in user' });
-    }
-
-    // Filter the messBills array to get only the details for the logged-in user
-    const userMessBill = latestMessBill.messBills.find(bill => bill.AdmNo === AdmNo);
+    // Fetch the user's mess bill details based on AdmNo
+    const userMessBill = await MessBillGen.findOne({ 'messBills.AdmNo': AdmNo })
+      .sort({ 'month': -1 }) // Sort by month in descending order
+      .populate('messBills.student', 'Name AdmNo yearOfStudy') // Populate student details
+      .select('messBills.Amount messBills.Fine messBills.TotalAttendance'); // Select specific fields
 
     if (!userMessBill) {
       return res.status(404).json({ error: 'Mess bill details not found for the logged-in user' });
     }
 
-    // Send the filtered mess bill data to the frontend
+    // Send the user's mess bill details as the response
     res.status(200).json({ userMessBill });
   } catch (error) {
-    console.error('Error fetching latest mess bill for the logged-in user:', error);
-    res.status(500).json({ error: 'Failed to fetch latest mess bill for the logged-in user' });
+    console.error('Error fetching user mess bill:', error);
+    res.status(500).json({ error: 'Failed to fetch user mess bill' });
   }
 });
 
