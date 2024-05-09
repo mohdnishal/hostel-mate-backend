@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 const MessBillSchema = new mongoose.Schema({
   date: {
     type: String,
-    // required: true
+    required: true
   },
   NumberofUser:{
     type:Number,

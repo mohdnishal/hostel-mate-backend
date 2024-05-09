@@ -472,9 +472,6 @@ app.get('/nextpage', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-// //
-
-
 
 app.post('/login', async (req, res) => {
   try {
@@ -824,7 +821,24 @@ app.get('/latest-messbill', async (req, res) => {
   }
 });
 
+app.post('/update-messbills', async (req, res) => {
+  const { messBills } = req.body;
 
+  try {
+    // Update mess bills in the database
+    await Promise.all(messBills.map(async (bill) => {
+      await MessBillGen.updateOne(
+        { 'messBills._id': bill._id },
+        { $set: { 'messBills.$.Fine': bill.Fine, 'messBills.$.TotalAmount': bill.TotalAmount } }
+      );
+    }));
+
+    res.status(200).json({ message: 'Mess bills updated successfully' });
+  } catch (error) {
+    console.error('Error updating mess bills:', error);
+    res.status(500).json({ error: 'Failed to update mess bills' });
+  }
+});
 
 
 
@@ -897,6 +911,7 @@ app.post('/messbilll', async (req, res) => {
 
         // Create a new mess bill object for the student
         const messBill = {
+          student: student._id,
           date,
           Room_No: student.Room_No,
           Name: student.Name,
@@ -946,21 +961,38 @@ app.get('/messbillgen', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch latest mess bill' });
   }
 });
-// const adminUsername = 'admin';
-// const adminPassword = 'admin123';
 
-// app.post('/login', (req, res) => {
-//   const { username, password } = req.body;
+app.get('/usermessbillgen', authMiddleware, async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1]; // Assuming the token is passed in the Authorization header
 
-//   // Check if the credentials match the admin credentials
-//   if (username === adminUsername && password === adminPassword) {
-//     // Return a success response with isAdmin set to true
-//     res.status(200).json({ user: { username }, token: 'sampleToken', isAdmin: true });
-//   } else {
-//     // Return an error response if credentials are incorrect
-//     res.status(401).json({ error: 'Invalid credentials' });
-//   }
-// });
+    // Decode the token to get user information (AdmNo in this case)
+    const decodedToken = jwt.verify(token, process.env.SECRET); // Assuming you're using JWT for authentication
+    const { AdmNo } = decodedToken;
+
+    // Retrieve the latest mess bill for the logged-in user from the database
+    const latestMessBill = await MessBillGen.findOne({ 'messBills.AdmNo': AdmNo }, {}, { sort: { 'month': -1 } });
+
+    if (!latestMessBill) {
+      return res.status(404).json({ error: 'Latest mess bill not found for the logged-in user' });
+    }
+
+    // Filter the messBills array to get only the details for the logged-in user
+    const userMessBill = latestMessBill.messBills.find(bill => bill.AdmNo === AdmNo);
+
+    if (!userMessBill) {
+      return res.status(404).json({ error: 'Mess bill details not found for the logged-in user' });
+    }
+
+    // Send the filtered mess bill data to the frontend
+    res.status(200).json({ userMessBill });
+  } catch (error) {
+    console.error('Error fetching latest mess bill for the logged-in user:', error);
+    res.status(500).json({ error: 'Failed to fetch latest mess bill for the logged-in user' });
+  }
+});
+
+
 
 const axios = require('axios');
 // Function to fetch latitude and longitude from a PIN
@@ -987,29 +1019,6 @@ async function fetchDistance(destLat, destLong) {
   }
 }
 
-// Endpoint to fetch distance based on PIN
-app.get('/search', async (req, res) => {
-  try {
-    const pin = req.query.q;
-
-    if (!pin || pin.trim() === "") {
-      res.status(400).json({ error: 'PIN is empty' });
-      return;
-    }
-
-    // Fetch latitude and longitude from the geocoding API
-    const { lat, lon } = await fetchLatLng(pin);
-
-    // Calculate distance using obtained latitude and longitude
-    const distance = await fetchDistance(lat, lon);
-
-    // Send distance back to the client
-    res.json({ distance });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 
 

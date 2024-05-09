@@ -5,9 +5,14 @@ const MessBillGenSchema = new Schema({
   month: {
     type: String,
     required: true,
-  },
+  },//
   messBills: [
     {
+      student: {
+        type: Schema.Types.String,
+        ref: 'Alloted', // Reference to the Alloted schema
+        required: true,
+      },
       date: {
         type: String,
         // Other properties...
