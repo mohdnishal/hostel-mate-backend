@@ -17,9 +17,9 @@ const AllotedSchema=new Schema(
         password:{
             type:String
         },
-        // EmergencyPhoneNo:{
-        //     type:String
-        // },
+        Email:{
+            type:String
+        },
         Gender:{
             type:String
         },
@@ -124,12 +124,16 @@ const AllotedSchema=new Schema(
             type:Number
         }, absenceStreaks: {
             type: Map,
-            of: Number, // Key is date, value is absence streak
-            default: new Map(), // Initialize absenceStreaks as an empty Map
+            of: Number, 
+            default: new Map(), 
         },
         TotalAmount: {
             type: Number,
-            default: 0, // Default value for TotalAmount
+            default: 0, 
+          },
+          Fine:{
+            type:Number,
+            default: 0,
           },
           TotalAttendance: {
             type: Number,

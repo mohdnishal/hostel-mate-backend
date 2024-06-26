@@ -5,8 +5,6 @@ const createToken = (userId) => {
     return jwt.sign({ id: userId }, process.env.SECRET, { expiresIn: '2d' });
   };
 
-// Middleware to authenticate requests
-
 
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization;
@@ -17,9 +15,9 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const tokenWithoutBearer = token.split(' ')[1];
-    console.log('Received token:', tokenWithoutBearer); // Log the received token
+    console.log('Received token:', tokenWithoutBearer); 
     const decoded = jwt.verify(tokenWithoutBearer, process.env.SECRET);
-    console.log('Decoded token:', decoded); // Log the decoded token
+    console.log('Decoded token:', decoded); 
     req.user = decoded;
     next();
   } catch (error) {

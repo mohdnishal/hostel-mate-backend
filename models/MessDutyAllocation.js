@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Check if the model already exists to prevent OverwriteModelError
 const MessDutyModel = mongoose.models.messduties || mongoose.model('messduties', new Schema({
   roomNo: {
     type: Number,

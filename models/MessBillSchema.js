@@ -10,11 +10,11 @@ const MessBillSchema = new mongoose.Schema({
   },
   TotalEstablishmentcharge: {
     type: Number,
-    // required: true
+    required: true
   },
   TotalFoodCharge: {
     type: Number,
-    // required: true
+    required: true
   },
   Totalnoofattendance:{
     type:Number

@@ -4,54 +4,66 @@ const UserSchema=new Schema(
     {
         Name:{
             type:String,
-            required:function(){
-                return this.someCondition;
-            },
+            required:true
         },
         PhoneNo:{
             type:String,
-            //required:true
+            required:true
         },
-        // EmergencyPhoneNo:{
-        //     type:String
-        // },
+        Email:{
+            type:String,
+            required:true
+        },
         Gender:{
-            type:String
+            type:String,
+            required:true
         },
         Degree:{
             type:String
         },
         AdmNo:{
             type:String,
+            required:true,
+            unique: true
         },
         YearOfStudy:{
-            type:String
+            type:String,
+            required:true
         },
         Branch:{
-            type:String
+            type:String,
+            required:true
         },
         PAddress1:{
             type:String,
-            // required:true
+            required:true
         },
         PAddress2:{
-            type:String
+            type:String,
+            required:true
         },
         PPincode:{
             type:String,
-            // required:true
+            required:true
+        },
+        Distance:{
+            type:String,
         },
         PDistrict:{
-            type:String
+            type:String,
+            required:true
         },
         PState:{
-            type:String
+            type:String,
+            required:true
         },
         PCountry:{
-            type:String
+            type:String,
+            required:true
         },
         Adhar:{ 
-            type:String
+            type:String,
+            required:true
         },
         RAddress1:{
             type:String,
@@ -74,22 +86,24 @@ const UserSchema=new Schema(
             type:String
         },
         Income:{
-            type:String
+            type:String,
+            required:true
         },
         IncomeCertificate:{ 
-            type: String 
+            type: String ,
+            required:true
         },
         GName:{
             type:String,
-            required:function(){
-                return this.someCondition;
-            },
+            required:true
         },
         GPhoneNo:{
-            type:String
+            type:String,
+            required:true
         },
         Relation:{
-            type:String
+            type:String,
+            required:true
         },
         GAddress1:{
             type:String,
@@ -112,7 +126,8 @@ const UserSchema=new Schema(
             type:String
         },
         Priority:{
-            type:String
+            type:String,
+            required:true
         }
     }
 )

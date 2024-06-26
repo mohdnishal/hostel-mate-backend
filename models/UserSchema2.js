@@ -15,9 +15,9 @@ const UserSchema2=new Schema(
             type:String,
             //required:true
         },
-        // EmergencyPhoneNo:{
-        //     type:String
-        // },
+        Email:{
+            type:String
+        },
         Gender:{
             type:String
         },
