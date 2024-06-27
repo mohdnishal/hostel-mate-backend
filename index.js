@@ -10,7 +10,7 @@ app.use(cookieParser())
 const bodyParser = require('body-parser');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-const Registration = require('./routes/Registration'); 
+const Registration = require('./routes/Registration.js'); 
 const Attendance = require('./routes/Attendance'); 
 const Allotment = require('./routes/Allotment');
 const MessDuty = require('./routes/MessDuty');
