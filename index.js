@@ -29,7 +29,9 @@ app.use(
     origin: 'http://localhost:3000'
   })
 );
-
+app.use('/',(req,res)=>{
+  res.send("server is happy");
+})
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
