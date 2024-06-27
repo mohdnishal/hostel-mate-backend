@@ -10,14 +10,14 @@ app.use(cookieParser())
 const bodyParser = require('body-parser');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// const Registration = require('./routes/Registration.js'); 
-const Attendance = require('./routes/Attendance'); 
-const Allotment = require('./routes/Allotment');
-const MessDuty = require('./routes/MessDuty');
-const MessBill = require('./routes/MessBill');
-const Complaint = require('./routes/Complaint');
-const Userr = require('./routes/User');
-const UserLogin = require('./routes/UserLogin'); 
+const Registration = require('./Routes/Registration.js'); 
+const Attendance = require('./Routes/Attendance'); 
+const Allotment = require('./Routes/Allotment');
+const MessDuty = require('./Routes/MessDuty');
+const MessBill = require('./Routes/MessBill');
+const Complaint = require('./Routes/Complaint');
+const Userr = require('./Routes/User');
+const UserLogin = require('./Routes/UserLogin'); 
 
 
 // Connect to MongoDB
@@ -38,7 +38,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // -----------------Registartion Routes ------------
-// app.use('/api', Registration);
+app.use('/api', Registration);
 //-----------------/Registration-------------------------------------
 // ------------Attendance-----------------
 app.use('/api', Attendance);
