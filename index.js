@@ -26,7 +26,8 @@ mongoDB();
 app.use(
   cors({
     credentials: true,
-    origin: 'https://hostel-mate-frontend.vercel.app'
+    origin: ['https://hostel-mate-frontend.vercel.app'],
+    methods:["GET","POST","DELETE"]
   })
 
 );
