@@ -14,5 +14,5 @@ const RoomSchema = new Schema({
     },
     copystudents: [{ type: Schema.Types.ObjectId, ref: 'Alloted' }]
 });
-
+//
 module.exports = mongoose.model('room', RoomSchema);
